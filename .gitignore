@@ -1,0 +1,34 @@
+# 依赖目录
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+coverage/
+
+# 日志与缓存
+*.log
+.cache/
+.turbo/
+.parcel-cache/
+.pytest_cache/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.idea/
+.vscode/
+
