@@ -1,0 +1,17 @@
+# 航海小抓 - 飞书 CLI 配置文件
+# 文档 Token 从飞书文档 URL 中获取：https://xxx.feishu.cn/wiki/{token}
+
+documents:
+  log: "EZc9wq9phi1ggUk6RDvcuUAMnuG"     # 日志文档
+  notes: "JWxZdd77kozT9FxGd2Tc3d41nTg"   # CLI 笔记文档
+  report: "VApTdvmZhoH2TBx3hGbcGIYCn0g"  # 周报文档
+  report_ref: "AmWTwRAzPiApPCkrlnLco7htnyd"  # 上周报参考文档
+
+# DDL 截止日期跟踪
+ddl_watch:
+  - keyword: "教练招募"
+    ddl: "2026-07-10"
+  - keyword: "宣发文案"
+    ddl: "2026-07-11"
+  - keyword: "教研手册"
+    ddl: "2026-07-09"
