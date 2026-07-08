@@ -57,7 +57,7 @@ function formatIncome(raw = {}) {
 }
 
 function inferContentType(material = {}) {
-  if (material.sourceTool === 'activityManualSearch') return '航海手册';
+  if (material.sourceTool === 'activityManualSearch' || /manual|chapter|航海手册|章节/i.test(material.sourceTool || '')) return '航海手册';
   if (material.sourceTool === 'activityPilotSearch') return '高手领航';
   if (['projectLibSearch', 'projectLibList'].includes(material.sourceTool)) return '项目库案例';
   if (['searchTopic', 'contentSearch'].includes(material.sourceTool)) return '生财帖子';
