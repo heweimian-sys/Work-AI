@@ -43,6 +43,18 @@ function shouldReplyInCurrentChat(event) {
 
 function parseMcpCommand(text = '') {
   const compact = text.replace(/\s+/g, '').toLowerCase();
+  if (/航海手册/.test(compact) && /同步|拉取|抓取|导入|入库|归档|更新|sync|import/.test(compact)) {
+    const dryRun = /预览|测试|dryrun|dry-run/.test(compact);
+    const limitMatch = text.match(/(\d+)\s*(条|个)?/);
+    return {
+      inspectOnly: false,
+      mode: 'manual_chapters',
+      dryRun,
+      limit: limitMatch ? Number(limitMatch[1]) : 20,
+      activityLimit: 3,
+      chapterLimit: 10,
+    };
+  }
   if (!/mcp|生财/.test(compact)) return null;
   if (/检查|查看|工具|列表|有哪些|inspect|list/.test(compact)) {
     return { inspectOnly: true };
@@ -146,6 +158,7 @@ export async function handleEvent(event) {
 - 清理表格：用户说「清理重复记录」「去重」→ 调 cleanup_table
 - 整理群标签：用户说「整理这个群的记录」→ 调 organize_by_group
 - 生财MCP：管理员私聊说「检查MCP工具」「同步MCP资料」「从生财MCP拉资料」→ 调 sync_scys_mcp
+- 航海手册MCP：管理员私聊说「同步航海手册」「拉取航海手册」「更新航海手册」→ 调 sync_scys_mcp，并传 mode=manual_chapters
 - 归档链接：用户发了飞书链接（docx/wiki/sheets/base/minutes）→ **调 archive_link** 把链接内容归档
 - 归档文件：用户发了文件（PDF/PPT/图片）→ **调 archive_file** 把文件归档
 
