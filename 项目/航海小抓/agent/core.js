@@ -72,6 +72,17 @@ function parseMcpCommand(text = '') {
   return null;
 }
 
+function parseLibraryAuditCommand(text = '') {
+  const compact = text.replace(/\s+/g, '').toLowerCase();
+  if (!/资料库|知识库|表格|库/.test(compact)) return null;
+  if (!/体检|健康|检查|诊断|盘点|看看|查看|audit|doctor/.test(compact)) return null;
+
+  const limitMatch = text.match(/(\d+)\s*(条|个)?/);
+  return {
+    limit: limitMatch ? Number(limitMatch[1]) : 1000,
+  };
+}
+
 /**
  * 处理一次飞书事件
  * 文件/链接 → 直接归档（不走 LLM）
@@ -128,6 +139,20 @@ export async function handleEvent(event) {
       const result = await executeToolCall('sync_scys_mcp', { ...mcpCommand, _event: event });
       const parsed = typeof result === 'string' ? JSON.parse(result) : result;
       const replyText = parsed.replyText || (parsed.success ? '生财 MCP 处理完成。' : '生财 MCP 处理失败。');
+      await saveSession(chatId, userId, { role: 'user', text: userText });
+      await saveSession(chatId, userId, { role: 'bot', text: replyText });
+      if (shouldReplyInCurrentChat(event)) {
+        await sendMessage(chatId, replyText);
+      }
+      return;
+    }
+
+    const libraryAuditCommand = event.isP2P ? parseLibraryAuditCommand(userText) : null;
+    if (libraryAuditCommand) {
+      log('info', `命中资料库体检确定性指令: ${JSON.stringify(libraryAuditCommand)}`);
+      const result = await executeToolCall('audit_library', { ...libraryAuditCommand, _event: event });
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const replyText = parsed.replyText || (parsed.success ? '资料库体检完成。' : '资料库体检失败。');
       await saveSession(chatId, userId, { role: 'user', text: userText });
       await saveSession(chatId, userId, { role: 'bot', text: replyText });
       if (shouldReplyInCurrentChat(event)) {
