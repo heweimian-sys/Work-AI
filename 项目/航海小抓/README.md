@@ -62,6 +62,16 @@ node scripts/verify-mcp-manual.js --activityLimit=1 --chapterLimit=3 --limit=3
 - `测试同步航海手册`：dryRun 预览，不写入多维表格。
 - `资料库体检`：只读检查多维表格健康度，不删除、不修改。
 
+## 运营闭环
+
+查询没有结果时，Agent 会把搜索词写入：
+
+```text
+data/no-result-searches.jsonl
+```
+
+这份文件可以定期查看，用来判断用户缺什么资料。
+
 ## 重要配置
 
 复制 `.env.example` 为 `.env`，并填写飞书、OpenAI 和生财 MCP 配置。不要提交 `.env`。

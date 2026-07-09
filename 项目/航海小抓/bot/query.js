@@ -15,9 +15,11 @@ import { searchMultiField, searchMultiKeywords, getByRecordIds } from '../lib/bi
 import { extractSearchKeywords, expandQueryKeywords } from '../lib/ai.js';
 import { embed, buildQueryText } from '../lib/embedding.js';
 import { assessResourceRelevance } from '../tools/relevance.js';
+import { recordNoResultSearch } from '../memory/search_feedback.js';
 
 const KEYWORD_WEIGHT = 1.0;
 const SEMANTIC_WEIGHT = 1.2;
+const REQUIRED_SEARCH_FIELDS = ['文件名', '主题标签', '一句话摘要'];
 
 function extractValidUrl(value) {
   const url = value?.link ?? value ?? '';
@@ -38,6 +40,12 @@ function isMarkedBad(fields = {}) {
   const name = normalize(fields['文件名']);
   const reason = normalize(fields['归档理由']);
   return confidence < 0 || /^\[已清理\]/.test(name) || /待审核|低价值|无关|垃圾/.test(reason);
+}
+
+function isSearchReady(fields = {}) {
+  if (isMarkedBad(fields)) return false;
+  if (!assessResourceRelevance(fields).keep) return false;
+  return REQUIRED_SEARCH_FIELDS.every(name => normalize(fields[name]).trim());
 }
 
 function qualityBoost(fields = {}) {
@@ -196,12 +204,18 @@ export async function handleQuery(event, userText, options = {}) {
     .sort((a, b) => b.score - a.score)
     .map(x => x.record)
     .filter(r => !String(r.fields['文件名'] ?? '').includes('【测试行'))
-    .filter(r => !isMarkedBad(r.fields || {}));
+    .filter(r => isSearchReady(r.fields || {}));
 
   log('info', `命中 ${records.length} 条记录 (关键词+语义) (${Date.now() - startTime}ms)`);
 
   // === Step 4: 紧凑格式回复 ===
   if (records.length === 0) {
+    recordNoResultSearch({
+      query: cleaned,
+      chatId,
+      userId: event?.sender?.sender_id?.open_id || event?.userId || '',
+      keywords: allKeywords,
+    });
     const link = `https://bytedance.feishu.cn/base/${process.env.BITABLE_APP_TOKEN}`;
     if (!options.skipSend) {
       await sendText(chatId,

@@ -21,6 +21,7 @@ const CHECK_FILES = [
   'tools/index.js',
   'tools/mcp_sync.js',
   'tools/library_audit.js',
+  'memory/search_feedback.js',
   'scripts/export-knowledge.js',
 ];
 
