@@ -144,7 +144,7 @@ export async function handleEvent(event) {
     // 只传查询相关的工具，省 token
     const toolSchemas = getToolSchemas().filter(s =>
       ['query_knowledge', 'continue_query', 'record_feedback', 'cleanup_table', 'organize_by_group', 'scan_chat_history',
-       'archive_link', 'archive_file', 'sync_scys_mcp'].includes(s.function.name)
+       'archive_link', 'archive_file', 'sync_scys_mcp', 'audit_library'].includes(s.function.name)
     );
 
     // 构建 system prompt（含上下文感知）
@@ -156,6 +156,7 @@ export async function handleEvent(event) {
 - 反馈：用户说「有用」「谢谢」「不对」「不是这个」→ 调 record_feedback
 - 扫群历史：用户说「扫描群消息」「把群里资料整理一下」→ 调 scan_chat_history
 - 清理表格：用户说「清理重复记录」「去重」→ 调 cleanup_table
+- 资料库体检：用户说「资料库体检」「检查资料库」「看看资料库健康度」→ 调 audit_library
 - 整理群标签：用户说「整理这个群的记录」→ 调 organize_by_group
 - 生财MCP：管理员私聊说「检查MCP工具」「同步MCP资料」「从生财MCP拉资料」→ 调 sync_scys_mcp
 - 航海手册MCP：管理员私聊说「同步航海手册」「拉取航海手册」「更新航海手册」→ 调 sync_scys_mcp，并传 mode=manual_chapters

@@ -23,6 +23,12 @@ npm run bot
 npm run verify:mcp-manual
 ```
 
+只读体检资料库健康度，不修改记录：
+
+```powershell
+npm run audit:library
+```
+
 小批量验证参数：
 
 ```powershell
@@ -36,6 +42,7 @@ node scripts/verify-mcp-manual.js --activityLimit=1 --chapterLimit=3 --limit=3
 - `同步航海手册`：专门同步航海列表、手册目录和章节详情。
 - `同步航海手册 5条`：限制本轮最多处理 5 条章节详情。
 - `测试同步航海手册`：dryRun 预览，不写入多维表格。
+- `资料库体检`：只读检查多维表格健康度，不删除、不修改。
 
 ## 重要配置
 

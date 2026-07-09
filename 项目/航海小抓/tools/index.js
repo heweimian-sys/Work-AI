@@ -13,6 +13,7 @@
  *   - diagnose        自诊断操作失败的原因
  *   - scan_chat_history  扫描群历史消息中的文件/链接（主动搜集）
  *   - sync_scys_mcp   从生财 MCP 同步外部资料
+ *   - audit_library   只读体检资料库健康度
  *   - send_reply      发送回复消息
  */
 
@@ -24,6 +25,7 @@ import * as feedbackTool from './feedback.js';
 import * as chatTool from './chat.js';
 import * as diagnoseTool from './diagnose.js';
 import * as mcpSyncTool from './mcp_sync.js';
+import * as libraryAuditTool from './library_audit.js';
 import { getDefaultMonitoredChatId } from '../memory/chat.js';
 
 // ============================================================
@@ -197,6 +199,20 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'audit_library',
+      description: '只读资料库体检：统计多维表格总数、可检索完整度、MCP占比、待审核、重复指纹、壳子缺失和低价值候选。不修改、不删除任何记录。适合用户说“资料库体检”“检查资料库”“看看资料库健康度”。',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: '最多读取多少条记录，默认 1000', default: 1000 },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'sync_scys_mcp',
       description: '管理员工具：连接生财有术 MCP，列出可用工具或同步 MCP 资料到多维表格。适合用户说“检查MCP工具”“同步MCP资料”“从生财MCP拉资料”。需要 .env 配置 SCYS_MCP_TOKEN。',
       parameters: {
@@ -361,6 +377,11 @@ const TOOL_HANDLERS = {
   organize_by_group: async (args) => {
     const organizer = await import('./group_organizer.js');
     const result = await organizer.organizeByGroup(args.groupChatId, args.groupLabel);
+    return JSON.stringify(result);
+  },
+
+  audit_library: async (args) => {
+    const result = await libraryAuditTool.run(args || {});
     return JSON.stringify(result);
   },
 
