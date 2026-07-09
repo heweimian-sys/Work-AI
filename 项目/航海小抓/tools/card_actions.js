@@ -4,6 +4,7 @@
 
 import { client, fetchAPI, log } from '../lib/feishu.js';
 import { getQueryPageState } from '../memory/query_pages.js';
+import { recordQueryFeedback } from '../memory/search_feedback.js';
 import { buildQueryCard } from './query.js';
 
 const recentPageClicks = new Map();
@@ -108,12 +109,37 @@ function schedulePatchFallback(messageId, card, meta) {
 
 export async function handleCardAction(event) {
   const { value, messageId, chatId, operatorOpenId } = normalizeCardActionEvent(event);
-  if (value.action !== 'query_page') return false;
+  if (!['query_page', 'query_feedback'].includes(value.action)) return false;
 
   cleanupClicks();
 
   const queryId = value.queryId || '';
   const page = Number(value.page || 0);
+
+  if (value.action === 'query_feedback') {
+    const state = getQueryPageState(queryId);
+    const labels = {
+      useful: '有用',
+      irrelevant: '不相关',
+      broken_link: '链接失效',
+      need_more: '需要补充',
+    };
+    const feedback = value.feedback || '';
+    recordQueryFeedback({
+      type: feedback,
+      query: state?.query || '',
+      chatId: chatId || state?.chatId || '',
+      userId: operatorOpenId || state?.userId || '',
+      queryId,
+      page,
+    });
+
+    const noticeCard = buildNoticeCard('已收到反馈', `反馈类型：${labels[feedback] || feedback || '未知'}\n我会把这条记录放进运营反馈日志里。`);
+    schedulePatchFallback(messageId, noticeCard, { queryId, page });
+    log('ok', `查询反馈已记录: queryId=${queryId} feedback=${feedback || 'unknown'}`);
+    return noticeCard;
+  }
+
   const clickKey = `${messageId || chatId}:${operatorOpenId || 'unknown'}:${queryId}:${page}`;
   const last = recentPageClicks.get(clickKey);
   if (last && Date.now() - last < DEDUP_MS) {

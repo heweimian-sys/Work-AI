@@ -176,6 +176,38 @@ export function buildQueryCard(query, records, options = {}) {
     });
   }
 
+  if (queryId) {
+    elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '有用' },
+          type: 'primary',
+          value: { action: 'query_feedback', queryId, page, feedback: 'useful' },
+        },
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '不相关' },
+          type: 'default',
+          value: { action: 'query_feedback', queryId, page, feedback: 'irrelevant' },
+        },
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '链接失效' },
+          type: 'default',
+          value: { action: 'query_feedback', queryId, page, feedback: 'broken_link' },
+        },
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '需要补充' },
+          type: 'default',
+          value: { action: 'query_feedback', queryId, page, feedback: 'need_more' },
+        },
+      ],
+    });
+  }
+
   return {
     config: { wide_screen_mode: true, update_multi: true },
     header: {
