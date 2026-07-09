@@ -29,6 +29,18 @@ npm run verify:mcp-manual
 npm run audit:library
 ```
 
+导出标准知识包，可导入 MaxKB/Dify/向量库：
+
+```powershell
+npm run export:knowledge
+```
+
+导出结果默认在 `exports/kb-export-时间戳/`，包含：
+
+- `knowledge.jsonl`
+- `knowledge.md`
+- `manifest.json`
+
 小批量验证参数：
 
 ```powershell
