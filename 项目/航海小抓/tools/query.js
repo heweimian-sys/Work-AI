@@ -32,6 +32,35 @@ function truncate(text, max = 120) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
+function buildReason(fields = {}) {
+  const priority = cleanText(fields['推荐优先级']);
+  const audience = cleanText(fields['适合人群']);
+  const problem = cleanText(fields['解决的问题']);
+  const type = cleanText(fields['内容类型']);
+  const summary = cleanText(fields['一句话摘要']);
+
+  if (priority === '推荐' && audience) return `优先看，适合${audience}`;
+  if (problem) return `解决：${truncate(problem, 48)}`;
+  if (audience) return `适合：${truncate(audience, 48)}`;
+  if (type && type !== '其他') return `类型：${truncate(type, 48)}`;
+  if (summary) return truncate(summary, 48);
+  return '匹配度较高';
+}
+
+function buildRecommendationSummary(records = []) {
+  const recommended = records.slice(0, Math.min(2, records.length)).map((record, index) => {
+    const fields = record.fields || {};
+    const name = truncate(fields['文件名'] || '未知资料', 42);
+    return `${index + 1}. ${name}\n   ${buildReason(fields)}`;
+  });
+
+  if (!recommended.length) return '';
+  const suffix = records.length > recommended.length
+    ? `\n\n其余 ${records.length - recommended.length} 条放在卡片里，可以继续翻页看。`
+    : '';
+  return `我建议先看这 ${recommended.length} 条：\n${recommended.join('\n')}${suffix}`;
+}
+
 function groupRecords(records) {
   const groups = new Map();
   for (const record of records) {
@@ -59,6 +88,16 @@ export function buildQueryCard(query, records, options = {}) {
       },
     },
   ];
+
+  if (page === 0) {
+    const recommendation = buildRecommendationSummary(records);
+    if (recommendation) {
+      elements.push({
+        tag: 'div',
+        text: { tag: 'lark_md', content: recommendation.replace(/\n/g, '\n') },
+      });
+    }
+  }
 
   let globalIndex = start + 1;
   for (const [groupName, groupRecordsList] of groupRecords(shown)) {
@@ -164,6 +203,7 @@ export async function run(args) {
     // 自行构造格式化文本（完全硬编码，避开 LLM 文本生成）
     let replyText = '';
     if (records && records.length > 0) {
+      const recommendation = buildRecommendationSummary(records);
       const lines = records.slice(0, QUERY_PAGE_SIZE).map((r, i) => {
         const f = r.fields;
         const name = f['文件名'] ?? '未知';
@@ -176,7 +216,7 @@ export async function run(args) {
       });
       const count = records.length;
       const more = count > QUERY_PAGE_SIZE ? `\n\n还有 ${count - QUERY_PAGE_SIZE} 条，可点击卡片「下一页」继续看。` : '';
-      replyText = `共 ${count} 条结果，第 1 页：\n\n${lines.join('\n\n')}${more}`;
+      replyText = `共 ${count} 条结果。\n\n${recommendation}\n\n第 1 页资料列表：\n\n${lines.join('\n\n')}${more}`;
     } else {
       const bitableLink = `https://bytedance.feishu.cn/base/${process.env.BITABLE_APP_TOKEN}`;
       replyText = `没找到「${userText}」的相关资料\n可以试试其他关键词\n📎 全部资料：${bitableLink}`;
