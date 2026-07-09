@@ -6,6 +6,7 @@
   "scripts": {
     "init": "node scripts/init.js",
     "test-api": "node scripts/test-api.js",
+    "verify:mcp-manual": "node scripts/verify-mcp-manual.js",
     "bot": "node bot/index.js"
   },
   "dependencies": {
