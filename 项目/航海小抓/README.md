@@ -35,6 +35,12 @@ npm run audit:library
 npm run export:knowledge
 ```
 
+一键体检 Agent 关键链路：
+
+```powershell
+npm run doctor
+```
+
 导出结果默认在 `exports/kb-export-时间戳/`，包含：
 
 - `knowledge.jsonl`
