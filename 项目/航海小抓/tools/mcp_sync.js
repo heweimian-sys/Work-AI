@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import 'dotenv/config';
 import { log } from '../lib/feishu.js';
 import { createScysMcpClient } from '../lib/mcp_client.js';
-import { insertIfNotExist } from '../lib/bitable.js';
+import { extractValidUrl, insertIfNotExist } from '../lib/bitable.js';
 import { extractFields } from '../lib/ai.js';
 import { buildDocumentText } from '../lib/embedding.js';
 import { assessResourceRelevance } from './relevance.js';
@@ -104,6 +104,53 @@ function pick(obj, keys) {
   return '';
 }
 
+function collectUrlsDeep(value, urls = [], depth = 0, seen = new Set()) {
+  if (value == null || depth > 5) return urls;
+  if (typeof value === 'string') {
+    const matches = value.match(/https?:\/\/[^\s"'<>，。；、）)]+/ig) || [];
+    urls.push(...matches);
+    return urls;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectUrlsDeep(item, urls, depth + 1, seen);
+    return urls;
+  }
+  if (typeof value !== 'object') return urls;
+  if (seen.has(value)) return urls;
+  seen.add(value);
+
+  const entries = Object.entries(value).sort(([a], [b]) => {
+    const aScore = /url|link|href|source|detail|web/i.test(a) ? 0 : 1;
+    const bScore = /url|link|href|source|detail|web/i.test(b) ? 0 : 1;
+    return aScore - bScore;
+  });
+  for (const [, child] of entries) collectUrlsDeep(child, urls, depth + 1, seen);
+  return urls;
+}
+
+function pickMaterialUrl(item) {
+  const direct = normalizeText(pick(item, [
+    'url',
+    'link',
+    'source_url',
+    'sourceUrl',
+    'web_url',
+    'webUrl',
+    'href',
+    'hrefUrl',
+    'detailUrl',
+    'shareUrl',
+    'originUrl',
+    'originalUrl',
+    'articleUrl',
+  ]));
+  const directUrl = extractValidUrl(direct);
+  if (directUrl) return directUrl;
+
+  const urls = collectUrlsDeep(item).map(extractValidUrl).filter(Boolean);
+  return urls.find(url => !/avatar|image|png|jpg|jpeg|gif|webp/i.test(url)) || urls[0] || '';
+}
+
 function normalizeMaterial(raw, index = 0, sourceTool = '') {
   const item = raw && typeof raw === 'object' ? raw : { content: normalizeText(raw) };
   const id = normalizeText(pick(item, [
@@ -127,7 +174,7 @@ function normalizeMaterial(raw, index = 0, sourceTool = '') {
     `MCP资料_${index + 1}`;
   const summary = normalizeText(pick(item, ['summary', 'description', 'desc', 'abstract', 'brief']));
   const content = normalizeText(pick(item, ['content', 'text', 'markdown', 'body', 'detail', 'articleContent', 'highlightArticleContent', 'highlightText'])) || summary;
-  const url = normalizeText(pick(item, ['url', 'link', 'source_url', 'web_url', 'href', 'hrefUrl', 'detailUrl']));
+  const url = pickMaterialUrl(item);
   const author = normalizeText(pick(item, ['author', 'creator', 'user_name', 'nickname', 'speaker', 'shareUserNickName']));
   const inferredType =
     sourceTool === 'activityManualSearch' || /manual|chapter|航海手册|章节/i.test(sourceTool) ? '航海手册' :
@@ -345,6 +392,8 @@ function materialToFields(material, aiFields, relevance) {
   const sourceNote = [
     '来源：生财MCP',
     material.id ? `外部ID：${material.id}` : '',
+    material.sourceTool ? `来源工具：${material.sourceTool}` : '',
+    material.url ? `原文链接：${material.url}` : '原文链接：MCP未提供可打开链接',
     material.updatedAt ? `外部更新时间：${material.updatedAt}` : '',
     relevance?.reason ? `价值判断：${relevance.reason}` : '',
   ].filter(Boolean).join('\n');

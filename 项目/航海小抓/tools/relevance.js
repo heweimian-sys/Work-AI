@@ -5,6 +5,8 @@
  * 规则偏保守：没有明显噪音信号时保留，避免误删真实资料。
  */
 
+import { normalizeFieldText, readStandardField } from '../lib/bitable.js';
+
 const RESOURCE_POSITIVE = [
   /资料|文档|课件|PPT|pdf|PDF|教程|指南|手册|SOP|清单|模板|案例|复盘|直播|纪要|回放|课程|分享|讲义|方法论|实操|实战|工具包|攻略/,
   /航海|高手领航|深海圈|新人营|训练营|共读|内测|AI|大模型|知识库|自动化|编程|短剧|视频号|小红书|公众号|TikTok|YouTube/,
@@ -41,9 +43,7 @@ const STRONG_RESOURCE_TYPES = [
 const WEAK_TYPES = ['群聊记录', '合并转发', '访谈记录', '其他'];
 
 function normalize(value) {
-  if (Array.isArray(value)) return value.join(' ');
-  if (value && typeof value === 'object') return [value.text, value.link].filter(Boolean).join(' ');
-  return String(value || '');
+  return normalizeFieldText(value);
 }
 
 function boolMatch(patterns, text) {
@@ -52,26 +52,26 @@ function boolMatch(patterns, text) {
 
 function extractFieldsText(fields = {}) {
   return [
-    fields['文件名'],
-    fields['活动名称'],
-    fields['主题标签'],
-    fields['航海期次'],
-    fields['一句话摘要'],
-    fields['核心观点'],
-    fields['解决的问题'],
-    fields['内容类型'],
-    fields['归档理由'],
+    readStandardField(fields, '文件名'),
+    readStandardField(fields, '活动名称'),
+    readStandardField(fields, '主题标签'),
+    readStandardField(fields, '航海期次'),
+    readStandardField(fields, '一句话摘要'),
+    readStandardField(fields, '核心观点'),
+    readStandardField(fields, '解决的问题'),
+    readStandardField(fields, '内容类型'),
+    readStandardField(fields, '归档理由'),
   ].map(normalize).filter(Boolean).join('\n');
 }
 
 export function assessResourceRelevance(input = {}) {
   const fields = input.fields || input;
   const text = extractFieldsText(fields);
-  const contentType = normalize(fields['内容类型']);
-  const fingerprint = normalize(fields['内容指纹']);
-  const fileName = normalize(fields['文件名']);
-  const link = normalize(fields['文件链接']);
-  const confidence = Number(fields['AI置信度'] || fields['置信度'] || 0);
+  const contentType = normalize(readStandardField(fields, '内容类型'));
+  const fingerprint = normalize(readStandardField(fields, '内容指纹'));
+  const fileName = normalize(readStandardField(fields, '文件名'));
+  const link = normalize(readStandardField(fields, '文件链接') || readStandardField(fields, '原文链接'));
+  const confidence = Number(readStandardField(fields, 'AI置信度') || fields['置信度'] || 0);
 
   const hasPositive = boolMatch(RESOURCE_POSITIVE, text);
   const hasStrongResourceHint = boolMatch(STRONG_RESOURCE_HINTS, text);
@@ -132,7 +132,7 @@ export function shouldArchiveHistoricalText(text = '') {
 }
 
 export function extractDriveFileToken(fields = {}) {
-  const link = normalize(fields['文件链接']);
+  const link = normalize(readStandardField(fields, '文件链接') || readStandardField(fields, '原文链接'));
   const m = link.match(/\/file\/([a-zA-Z0-9]+)/);
   return m?.[1] || null;
 }

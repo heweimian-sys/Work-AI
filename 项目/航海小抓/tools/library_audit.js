@@ -6,7 +6,7 @@
 
 import 'dotenv/config';
 import { client } from '../lib/feishu.js';
-import { syncFieldMapping } from '../lib/bitable.js';
+import { normalizeFieldText, readStandardField, syncFieldMapping } from '../lib/bitable.js';
 import { assessResourceRelevance } from './relevance.js';
 
 const APP_TOKEN = process.env.BITABLE_APP_TOKEN;
@@ -22,9 +22,7 @@ const REQUIRED_SHELL_FIELDS = [
 ];
 
 function text(value) {
-  if (Array.isArray(value)) return value.map(text).filter(Boolean).join(' ');
-  if (value && typeof value === 'object') return [value.text, value.link, value.name, value.title].map(text).filter(Boolean).join(' ');
-  return String(value ?? '').trim();
+  return normalizeFieldText(value);
 }
 
 function isEmpty(value) {
@@ -55,18 +53,18 @@ async function listAllRecords(limit = 1000) {
 }
 
 function missingShellFields(fields = {}) {
-  return REQUIRED_SHELL_FIELDS.filter(name => isEmpty(fields[name]));
+  return REQUIRED_SHELL_FIELDS.filter(name => isEmpty(readStandardField(fields, name)));
 }
 
 function isPending(fields = {}) {
-  return text(fields['文件名']).includes('[待审核]') ||
-    text(fields['归档理由']).includes('待审核') ||
-    Number(fields['AI置信度'] || 0) === -1;
+  return text(readStandardField(fields, '文件名')).includes('[待审核]') ||
+    text(readStandardField(fields, '归档理由')).includes('待审核') ||
+    Number(readStandardField(fields, 'AI置信度') || 0) === -1;
 }
 
 function sourceType(fields = {}) {
-  const fingerprint = text(fields['内容指纹']);
-  const reason = text(fields['归档理由']);
+  const fingerprint = text(readStandardField(fields, '内容指纹'));
+  const reason = text(readStandardField(fields, '归档理由'));
   if (fingerprint.startsWith('mcp:') || reason.includes('生财MCP')) return 'MCP';
   if (fingerprint.startsWith('file:')) return '文件';
   if (fingerprint.startsWith('doc:') || fingerprint.startsWith('url:')) return '链接';
@@ -86,10 +84,10 @@ function buildAudit(records) {
 
   for (const record of records) {
     const fields = record.fields || {};
-    const name = text(fields['文件名']) || record.record_id;
-    const type = text(fields['内容类型']) || '未分类';
+    const name = text(readStandardField(fields, '文件名')) || record.record_id;
+    const type = text(readStandardField(fields, '内容类型')) || '未分类';
     const source = sourceType(fields);
-    const fingerprint = text(fields['内容指纹']);
+    const fingerprint = text(readStandardField(fields, '内容指纹'));
     const missing = missingShellFields(fields);
     const relevance = assessResourceRelevance(fields);
 

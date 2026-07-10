@@ -17,6 +17,8 @@ npm install
 npm run bot
 ```
 
+机器人需要 Node 进程常驻；服务器/PM2/Windows 本机常驻方式见 `docs/always-on.md`。
+
 验证生财 MCP 航海手册工具链，不写入多维表格：
 
 ```powershell

@@ -11,7 +11,13 @@
 
 import 'dotenv/config';
 import { client, log } from '../lib/feishu.js';
-import { searchMultiField, searchMultiKeywords, getByRecordIds } from '../lib/bitable.js';
+import {
+  extractValidUrl,
+  getByRecordIds,
+  normalizeFieldText,
+  readStandardField,
+  searchMultiKeywords,
+} from '../lib/bitable.js';
 import { extractSearchKeywords, expandQueryKeywords } from '../lib/ai.js';
 import { embed, buildQueryText } from '../lib/embedding.js';
 import { assessResourceRelevance } from '../tools/relevance.js';
@@ -21,31 +27,21 @@ const KEYWORD_WEIGHT = 1.0;
 const SEMANTIC_WEIGHT = 1.2;
 const REQUIRED_SEARCH_FIELDS = ['文件名', '主题标签', '一句话摘要'];
 
-function extractValidUrl(value) {
-  const url = value?.link ?? value ?? '';
-  if (typeof url !== 'string') return '';
-  if (!/^https?:\/\//.test(url)) return '';
-  if (url.includes('/file/test')) return '';
-  return url;
-}
-
 function normalize(value) {
-  if (Array.isArray(value)) return value.join(' ');
-  if (value && typeof value === 'object') return [value.text, value.link].filter(Boolean).join(' ');
-  return String(value || '');
+  return normalizeFieldText(value);
 }
 
 function isMarkedBad(fields = {}) {
-  const confidence = Number(fields['AI置信度'] || 0);
-  const name = normalize(fields['文件名']);
-  const reason = normalize(fields['归档理由']);
+  const confidence = Number(readStandardField(fields, 'AI置信度') || 0);
+  const name = normalize(readStandardField(fields, '文件名'));
+  const reason = normalize(readStandardField(fields, '归档理由'));
   return confidence < 0 || /^\[已清理\]/.test(name) || /待审核|低价值|无关|垃圾/.test(reason);
 }
 
 function isSearchReady(fields = {}) {
   if (isMarkedBad(fields)) return false;
   if (!assessResourceRelevance(fields).keep) return false;
-  return REQUIRED_SEARCH_FIELDS.every(name => normalize(fields[name]).trim());
+  return REQUIRED_SEARCH_FIELDS.every(name => normalize(readStandardField(fields, name)).trim());
 }
 
 function qualityBoost(fields = {}) {
@@ -53,13 +49,14 @@ function qualityBoost(fields = {}) {
   if (!relevance.keep) return -999;
 
   let score = 0;
-  if (normalize(fields['一句话摘要'])) score += 0.15;
-  if (normalize(fields['核心观点'])) score += 0.2;
-  if (normalize(fields['解决的问题'])) score += 0.25;
-  if (normalize(fields['内容类型']) && normalize(fields['内容类型']) !== '其他') score += 0.15;
-  if (normalize(fields['推荐优先级']) === '推荐') score += 0.15;
-  if (extractValidUrl(fields['文件链接'])) score += 0.1;
-  if (String(fields['内容指纹'] || '').startsWith('mcp:')) score += 0.05;
+  const contentType = normalize(readStandardField(fields, '内容类型'));
+  if (normalize(readStandardField(fields, '一句话摘要'))) score += 0.15;
+  if (normalize(readStandardField(fields, '核心观点'))) score += 0.2;
+  if (normalize(readStandardField(fields, '解决的问题'))) score += 0.25;
+  if (contentType && contentType !== '其他') score += 0.15;
+  if (normalize(readStandardField(fields, '推荐优先级')) === '推荐') score += 0.15;
+  if (extractValidUrl(readStandardField(fields, '文件链接') || readStandardField(fields, '原文链接'))) score += 0.1;
+  if (String(readStandardField(fields, '内容指纹') || '').startsWith('mcp:')) score += 0.05;
   return score + Math.max(-0.4, Math.min(0.4, relevance.score * 0.05));
 }
 
@@ -68,12 +65,12 @@ function includesText(source, keyword) {
 }
 
 function keywordMatchScore(fields = {}, cleaned = '', keywords = []) {
-  const name = normalize(fields['文件名']);
-  const tags = normalize(fields['主题标签']);
-  const summary = normalize(fields['一句话摘要']);
-  const points = normalize(fields['核心观点']);
-  const problem = normalize(fields['解决的问题']);
-  const type = normalize(fields['内容类型']);
+  const name = normalize(readStandardField(fields, '文件名'));
+  const tags = normalize(readStandardField(fields, '主题标签'));
+  const summary = normalize(readStandardField(fields, '一句话摘要'));
+  const points = normalize(readStandardField(fields, '核心观点'));
+  const problem = normalize(readStandardField(fields, '解决的问题'));
+  const type = normalize(readStandardField(fields, '内容类型'));
   const candidates = [...new Set([cleaned, ...keywords].map(k => String(k || '').trim()).filter(k => k.length >= 2))];
 
   let score = 0;
@@ -203,7 +200,7 @@ export async function handleQuery(event, userText, options = {}) {
     .filter(item => item.score > -100)
     .sort((a, b) => b.score - a.score)
     .map(x => x.record)
-    .filter(r => !String(r.fields['文件名'] ?? '').includes('【测试行'))
+    .filter(r => !String(readStandardField(r.fields || {}, '文件名') ?? '').includes('【测试行'))
     .filter(r => isSearchReady(r.fields || {}));
 
   log('info', `命中 ${records.length} 条记录 (关键词+语义) (${Date.now() - startTime}ms)`);
@@ -227,12 +224,15 @@ export async function handleQuery(event, userText, options = {}) {
 
   // 一行一条：文件名 ·分享人 [标签] 期次 链接
   const lines = records.slice(0, 5).map((r, i) => {
-    const f = r.fields;
-    const name = f['文件名'] ?? '未知';
-    const person = f['分享人'] ? ` ·${f['分享人']}` : '';
-    const tags = f['主题标签'] ? ` [${String(f['主题标签'])}]` : '';
-    const period = f['航海期次'] ? ` 🚢${f['航海期次']}` : '';
-    const link = extractValidUrl(f['文件链接']);
+    const f = r.fields || {};
+    const name = normalize(readStandardField(f, '文件名')) || '未知';
+    const personValue = normalize(readStandardField(f, '分享人'));
+    const tagsValue = normalize(readStandardField(f, '主题标签'));
+    const periodValue = normalize(readStandardField(f, '航海期次'));
+    const person = personValue ? ` ·${personValue}` : '';
+    const tags = tagsValue ? ` [${tagsValue}]` : '';
+    const period = periodValue ? ` 🚢${periodValue}` : '';
+    const link = extractValidUrl(readStandardField(f, '文件链接') || readStandardField(f, '原文链接'));
     return `${i + 1}. ${name}${person}${tags}${period}${link ? `\n   ${link}` : ''}`;
   });
 

@@ -8,23 +8,14 @@
 
 import { handleQuery } from '../bot/query.js';
 import { log } from '../lib/feishu.js';
+import { extractValidUrl, normalizeFieldText, readStandardField } from '../lib/bitable.js';
 import { saveQueryPageState } from '../memory/query_pages.js';
 
 const BOT_NAME = process.env.BOT_NAME || '航海资料小抓';
 export const QUERY_PAGE_SIZE = 5;
 
-function extractValidUrl(value) {
-  const url = value?.link ?? value ?? '';
-  if (typeof url !== 'string') return '';
-  if (!/^https?:\/\//.test(url)) return '';
-  if (url.includes('/file/test')) return '';
-  return url;
-}
-
 function cleanText(value, fallback = '') {
-  if (Array.isArray(value)) return value.filter(Boolean).join('、') || fallback;
-  if (value && typeof value === 'object') return value.text || value.link || fallback;
-  return String(value || fallback).trim();
+  return normalizeFieldText(value, fallback);
 }
 
 function truncate(text, max = 120) {
@@ -33,11 +24,11 @@ function truncate(text, max = 120) {
 }
 
 function buildReason(fields = {}) {
-  const priority = cleanText(fields['推荐优先级']);
-  const audience = cleanText(fields['适合人群']);
-  const problem = cleanText(fields['解决的问题']);
-  const type = cleanText(fields['内容类型']);
-  const summary = cleanText(fields['一句话摘要']);
+  const priority = cleanText(readStandardField(fields, '推荐优先级'));
+  const audience = cleanText(readStandardField(fields, '适合人群'));
+  const problem = cleanText(readStandardField(fields, '解决的问题'));
+  const type = cleanText(readStandardField(fields, '内容类型'));
+  const summary = cleanText(readStandardField(fields, '一句话摘要'));
 
   if (priority === '推荐' && audience) return `优先看，适合${audience}`;
   if (problem) return `解决：${truncate(problem, 48)}`;
@@ -50,7 +41,7 @@ function buildReason(fields = {}) {
 function buildRecommendationSummary(records = []) {
   const recommended = records.slice(0, Math.min(2, records.length)).map((record, index) => {
     const fields = record.fields || {};
-    const name = truncate(fields['文件名'] || '未知资料', 42);
+    const name = truncate(readStandardField(fields, '文件名', '未知资料'), 42);
     return `${index + 1}. ${name}\n   ${buildReason(fields)}`;
   });
 
@@ -64,7 +55,7 @@ function buildRecommendationSummary(records = []) {
 function groupRecords(records) {
   const groups = new Map();
   for (const record of records) {
-    const type = cleanText(record.fields?.['内容类型'], '资料');
+    const type = cleanText(readStandardField(record.fields || {}, '内容类型'), '资料');
     const key = type && type !== '其他' ? type : '资料';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(record);
@@ -109,12 +100,12 @@ export function buildQueryCard(query, records, options = {}) {
     for (const record of groupRecordsList) {
       const f = record.fields || {};
       const index = globalIndex++;
-      const name = truncate(f['文件名'] || '未知资料', 70);
-      const person = cleanText(f['分享人']);
-      const tags = truncate(f['主题标签'], 80);
-      const period = cleanText(f['航海期次']);
-      const summary = truncate(f['一句话摘要'] || f['解决的问题'], 120);
-      const link = extractValidUrl(f['文件链接']);
+      const name = truncate(readStandardField(f, '文件名', '未知资料'), 70);
+      const person = cleanText(readStandardField(f, '分享人'));
+      const tags = truncate(readStandardField(f, '主题标签'), 80);
+      const period = cleanText(readStandardField(f, '航海期次'));
+      const summary = truncate(readStandardField(f, '一句话摘要') || readStandardField(f, '解决的问题'), 120);
+      const link = extractValidUrl(readStandardField(f, '文件链接') || readStandardField(f, '原文链接'));
 
       const lines = [
         `**${index}. ${name}**`,
@@ -237,14 +228,22 @@ export async function run(args) {
     if (records && records.length > 0) {
       const recommendation = buildRecommendationSummary(records);
       const lines = records.slice(0, QUERY_PAGE_SIZE).map((r, i) => {
-        const f = r.fields;
-        const name = f['文件名'] ?? '未知';
-        const person = f['分享人'] ? `\n👤 ${f['分享人']}` : '';
-        const tags = f['主题标签'] ? `  🏷️ ${f['主题标签']}` : '';
-        const period = f['航海期次'] ? `  🚢 ${f['航海期次']}` : '';
-        const summary = f['一句话摘要'] ? `\n📝 ${f['一句话摘要']}` : '';
-        const link = extractValidUrl(f['文件链接']);
-        return `${i + 1}. 📄 ${name}${person}${period}\n${tags}${summary}\n${link ? `🔗 ${link}` : '⚠️ 文件链接暂不可用，可能是早期上传失败记录'}`;
+        const f = r.fields || {};
+        const name = cleanText(readStandardField(f, '文件名'), '未知');
+        const personValue = cleanText(readStandardField(f, '分享人'));
+        const tagsValue = cleanText(readStandardField(f, '主题标签'));
+        const periodValue = cleanText(readStandardField(f, '航海期次'));
+        const summaryValue = cleanText(readStandardField(f, '一句话摘要'));
+        const fingerprint = cleanText(readStandardField(f, '内容指纹'));
+        const link = extractValidUrl(readStandardField(f, '文件链接') || readStandardField(f, '原文链接'));
+        const person = personValue ? `\n👤 ${personValue}` : '';
+        const tags = tagsValue ? `  🏷️ ${tagsValue}` : '';
+        const period = periodValue ? `  🚢 ${periodValue}` : '';
+        const summary = summaryValue ? `\n📝 ${summaryValue}` : '';
+        const noLinkText = fingerprint.startsWith('mcp:')
+          ? 'ℹ️ MCP未提供原文链接，已展示可检索摘要'
+          : '⚠️ 文件链接暂不可用，可能是早期上传失败记录';
+        return `${i + 1}. 📄 ${name}${person}${period}\n${tags}${summary}\n${link ? `🔗 ${link}` : noLinkText}`;
       });
       const count = records.length;
       const more = count > QUERY_PAGE_SIZE ? `\n\n还有 ${count - QUERY_PAGE_SIZE} 条，可点击卡片「下一页」继续看。` : '';

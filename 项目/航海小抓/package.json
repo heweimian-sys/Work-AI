@@ -10,7 +10,11 @@
     "doctor": "node scripts/doctor.js",
     "export:knowledge": "node scripts/export-knowledge.js",
     "verify:mcp-manual": "node scripts/verify-mcp-manual.js",
-    "bot": "node bot/index.js"
+    "bot": "node bot/index.js",
+    "bot:pm2:start": "pm2 start bot/index.js --name feishu-kb-bot --time",
+    "bot:pm2:restart": "pm2 restart feishu-kb-bot",
+    "bot:pm2:logs": "pm2 logs feishu-kb-bot",
+    "bot:pm2:stop": "pm2 stop feishu-kb-bot"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.39.1",

@@ -5,6 +5,7 @@
  */
 
 import { client } from '../lib/feishu.js';
+import { extractValidUrl, normalizeFieldText, readStandardField } from '../lib/bitable.js';
 
 /**
  * 执行延续查询
@@ -51,12 +52,15 @@ export async function run(args) {
 
   if (selectedIndex >= 0 && selectedIndex < previousResults.length) {
     const record = previousResults[selectedIndex];
-    const f = record.fields;
-    const name = f['文件名'] ?? '未知';
-    const person = f['分享人'] ? ` ·${f['分享人']}` : '';
-    const tags = f['主题标签']?.length ? ` [${f['主题标签'].join('·')}]` : '';
-    const period = f['航海期次'] ? ` 🚢${f['航海期次']}` : '';
-    const link = f['文件链接']?.link ?? f['文件链接'] ?? '';
+    const f = record.fields || {};
+    const name = normalizeFieldText(readStandardField(f, '文件名'), '未知');
+    const personValue = normalizeFieldText(readStandardField(f, '分享人'));
+    const tagsValue = normalizeFieldText(readStandardField(f, '主题标签'));
+    const periodValue = normalizeFieldText(readStandardField(f, '航海期次'));
+    const link = extractValidUrl(readStandardField(f, '文件链接') || readStandardField(f, '原文链接'));
+    const person = personValue ? ` ·${personValue}` : '';
+    const tags = tagsValue ? ` [${tagsValue}]` : '';
+    const period = periodValue ? ` 🚢${periodValue}` : '';
 
     return {
       text: `「${previousQuery}」第 ${selectedIndex + 1} 条：\n${name}${person}${tags}${period}\n${link}`,
@@ -65,11 +69,13 @@ export async function run(args) {
 
   // 没有命中特定指令，重新列出全部
   const lines = previousResults.map((r, i) => {
-    const f = r.fields;
-    const name = f['文件名'] ?? '未知';
-    const person = f['分享人'] ? ` ·${f['分享人']}` : '';
-    const tags = f['主题标签']?.length ? ` [${f['主题标签'].join('·')}]` : '';
-    const link = f['文件链接']?.link ?? f['文件链接'] ?? '';
+    const f = r.fields || {};
+    const name = normalizeFieldText(readStandardField(f, '文件名'), '未知');
+    const personValue = normalizeFieldText(readStandardField(f, '分享人'));
+    const tagsValue = normalizeFieldText(readStandardField(f, '主题标签'));
+    const link = extractValidUrl(readStandardField(f, '文件链接') || readStandardField(f, '原文链接'));
+    const person = personValue ? ` ·${personValue}` : '';
+    const tags = tagsValue ? ` [${tagsValue}]` : '';
     return `${i + 1}. ${name}${person}${tags}${link ? `\n   ${link}` : ''}`;
   });
 

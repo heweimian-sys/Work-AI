@@ -142,7 +142,33 @@ export function getMissingFields() {
 
 function readField(fields, standardName) {
   const actualName = FIELD_MAPPING[standardName] || standardName;
-  return fields?.[actualName] ?? fields?.[standardName];
+  if (fields?.[actualName] != null) return fields[actualName];
+  if (fields?.[standardName] != null) return fields[standardName];
+  for (const alias of FIELD_ALIASES[standardName] || []) {
+    if (fields?.[alias] != null) return fields[alias];
+  }
+  return undefined;
+}
+
+export function readStandardField(fields = {}, standardName, fallback = '') {
+  const value = readField(fields, standardName);
+  return value == null || value === '' ? fallback : value;
+}
+
+export function normalizeFieldText(value, fallback = '') {
+  if (value == null) return fallback;
+  if (Array.isArray(value)) {
+    const text = value.map(item => normalizeFieldText(item, '')).filter(Boolean).join(' ');
+    return text || fallback;
+  }
+  if (typeof value === 'object') {
+    const text = [value.text, value.link, value.url, value.href, value.name, value.title]
+      .map(item => normalizeFieldText(item, ''))
+      .filter(Boolean)
+      .join(' ');
+    return text || fallback;
+  }
+  return String(value || fallback).trim();
 }
 
 function isEmptyValue(value) {
@@ -176,11 +202,28 @@ function incomingHasEnrichment(fields) {
   return IMPORTANT_FIELDS.some(name => !isEmptyValue(fields[name]));
 }
 
-function extractLinkValue(value) {
+export function extractLinkValue(value) {
   if (!value) return '';
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const link = extractLinkValue(item);
+      if (link) return link;
+    }
+    return '';
+  }
   if (typeof value === 'string') return value;
-  if (typeof value === 'object') return value.link || value.text || '';
+  if (typeof value === 'object') return value.link || value.url || value.href || value.text || '';
   return String(value);
+}
+
+export function extractValidUrl(value) {
+  const raw = extractLinkValue(value);
+  if (!raw || typeof raw !== 'string') return '';
+  const match = raw.match(/https?:\/\/[^\s"'<>，。；、）)]+/i);
+  const url = match ? match[0] : raw.trim();
+  if (!/^https?:\/\//i.test(url)) return '';
+  if (url.includes('/file/test')) return '';
+  return url;
 }
 
 /**
