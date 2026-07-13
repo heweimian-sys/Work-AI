@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import re
 import sys
@@ -10,15 +11,36 @@ from datetime import datetime, timedelta
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
+import yaml
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import GLM_KEY, HTTP_PROXY, OPEN_ID
+from config import DATA_DIR, GLM_KEY, HTTP_PROXY, OPEN_ID
 from feishu_api import send_text
+from news_store import ACTION_LABELS, NewsStore
 
 
 logger = logging.getLogger(__name__)
 PROXIES = {"http": HTTP_PROXY, "https": HTTP_PROXY} if HTTP_PROXY else None
 SOURCE_LIMIT = 3
+DEFAULT_INTERESTS = ["Agent", "MCP", "AI 编程", "运营", "效率工具"]
+
+
+def load_profile():
+    """从本地业务配置读取可编辑的资讯偏好。"""
+    path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    try:
+        with open(path, encoding="utf-8") as file:
+            config = yaml.safe_load(file) or {}
+    except (FileNotFoundError, OSError, yaml.YAMLError) as error:
+        logger.warning("资讯画像配置读取失败，使用默认值: %s", error)
+        config = {}
+    profile = config.get("news_profile", {})
+    interests = [str(value).strip() for value in profile.get("interests", DEFAULT_INTERESTS) if str(value).strip()]
+    return {
+        "interests": interests or DEFAULT_INTERESTS,
+        "history_days": max(1, int(profile.get("history_days", 14))),
+        "source_limit": max(1, int(profile.get("source_limit", SOURCE_LIMIT))),
+    }
 
 
 def _llm(prompt):
@@ -187,9 +209,32 @@ def deduplicate(items):
     return unique
 
 
+def rank_items(items, profile=None, source_affinity=None):
+    """结合热度、显式兴趣和来源反馈排序，同时保留探索空间。"""
+    profile = profile or {"interests": DEFAULT_INTERESTS}
+    source_affinity = source_affinity or {}
+    ranked = []
+    for item in items:
+        copy = dict(item)
+        haystack = f"{copy.get('title', '')} {copy.get('desc', '')}".casefold()
+        interest_hits = sum(1 for keyword in profile.get("interests", []) if keyword.casefold() in haystack)
+        copy["ranking_score"] = (
+            math.log1p(max(0, copy.get("score", 0)))
+            + interest_hits * 2.0
+            + source_affinity.get(copy.get("source"), 0)
+        )
+        copy["interest_hits"] = interest_hits
+        ranked.append(copy)
+    return sorted(ranked, key=lambda item: item["ranking_score"], reverse=True)
+
+
 def diversify(items, limit=15, per_source=SOURCE_LIMIT):
     """限制单一来源占比，同时保留来源内高热度内容。"""
-    ranked = sorted(items, key=lambda item: item.get("score", 0), reverse=True)
+    ranked = sorted(
+        items,
+        key=lambda item: item.get("ranking_score", math.log1p(max(0, item.get("score", 0)))),
+        reverse=True,
+    )
     counts = {}
     selected = []
     for item in ranked:
@@ -262,17 +307,23 @@ def _render(items, today):
         title = item.get("title_zh") or item["title"]
         heat = f" · 热度 {item['score']}" if item.get("score") else ""
         lines.extend([
-            f"{index}. {title} ({item['source']}{heat})",
+            f"{index}. [{item.get('item_id') or item['id']}] {title} ({item['source']}{heat})",
             f"原文: {item['url']}",
             f"价值: {item.get('reason') or '建议浏览原文。'}",
             "",
         ])
+    lines.extend([
+        "",
+        "反馈示例：AI资讯反馈 N-1234abcd useful",
+        "可用反馈：useful / irrelevant / known / later",
+    ])
     return "\n".join(lines).rstrip()
 
 
-def generate(fetchers=None):
-    """抓取、去重、多样化筛选并生成保留原始链接的中文日报。"""
+def build_digest(fetchers=None, store=None, profile=None, include_recent=False):
+    """生成日报及入选条目；发送成功后由调用方记录历史。"""
     today = datetime.now().strftime("%m月%d日")
+    profile = profile or load_profile()
     fetchers = fetchers or [
         (fetch_hackernews, 6),
         (fetch_github_ai, 5),
@@ -283,18 +334,67 @@ def generate(fetchers=None):
     all_items = []
     for fetcher, count in fetchers:
         all_items.extend(fetcher(count))
-    candidates = diversify(deduplicate(all_items))
+    unique = deduplicate(all_items)
+    if store:
+        unique = store.enrich(unique)
+        if not include_recent:
+            unique = store.filter_recent(unique, profile["history_days"])
+        affinity = store.source_affinity()
+    else:
+        affinity = {}
+        for item in unique:
+            item["item_id"] = ""
+    candidates = diversify(
+        rank_items(unique, profile, affinity),
+        per_source=profile.get("source_limit", SOURCE_LIMIT),
+    )
     if not candidates:
-        return f"AI 资讯 | {today}\n\n资讯源暂时访问异常，请查看运行日志。"
-    return _render(_select(candidates), today)
+        return f"AI 资讯 | {today}\n\n今天没有新的候选资讯，或资讯源暂时访问异常。", []
+    selected = _select(candidates)
+    return _render(selected, today), selected
+
+
+def generate(fetchers=None):
+    """兼容原有调用：不读写历史，仅生成日报文本。"""
+    content, _items = build_digest(fetchers=fetchers)
+    return content
+
+
+def record_feedback(store, item_id, action):
+    result = store.add_feedback(item_id, action)
+    return f"已记录：{item_id} · {ACTION_LABELS[result['action']]} · {result['title']}"
+
+
+def profile_summary(store, profile=None):
+    profile = profile or load_profile()
+    feedback = store.feedback_summary()
+    affinity = store.source_affinity()
+    feedback_text = "，".join(f"{ACTION_LABELS[key]} {value}" for key, value in sorted(feedback.items()))
+    affinity_text = "，".join(f"{source} {score:+.1f}" for source, score in sorted(affinity.items())) or "暂无"
+    return (
+        f"关注主题：{'、'.join(profile['interests'])}\n"
+        f"历史去重：{profile['history_days']} 天\n"
+        f"单来源上限：{profile['source_limit']} 条\n"
+        f"反馈统计：{feedback_text}\n"
+        f"来源偏好：{affinity_text}"
+    )
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     command = sys.argv[1] if len(sys.argv) > 1 else "push"
-    content = generate()
+    store = NewsStore()
     if command in ("push", "send"):
+        content, selected = build_digest(store=store)
         send_text(OPEN_ID, content)
+        store.record_sent(selected)
         print("已推送")
     elif command == "dry":
+        content, _selected = build_digest(store=store)
         print(content)
+    elif command == "feedback":
+        if len(sys.argv) < 4:
+            raise SystemExit("用法: ai_news.py feedback <资讯ID> <useful|irrelevant|known|later>")
+        print(record_feedback(store, sys.argv[2], sys.argv[3]))
+    elif command == "profile":
+        print(profile_summary(store))

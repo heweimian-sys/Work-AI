@@ -63,6 +63,8 @@ python feishu_cli.py doctor
 
 `config.yaml` 包含个人飞书资源标识，已被 Git 忽略。
 
+可以在 `config.yaml` 的 `news_profile` 中修改关注主题、历史去重天数和单一来源上限。反馈、推送历史和来源偏好保存在 `FEISHU_CLI_DATA_DIR/news.db`。
+
 ### 3. 启动
 
 ```bash
@@ -111,6 +113,38 @@ python ai_news.py dry
 ```
 
 `dry` 会访问公开资讯源，但不会发送飞书消息。未配置 GLM 时自动使用确定性排序。
+
+## 资讯反馈
+
+日报中的每条资讯都有稳定 ID，例如 `N-12ab34cd`。通过 Hermes 或命令行记录反馈：
+
+```bash
+python ai_news.py feedback N-12ab34cd useful
+python ai_news.py feedback N-12ab34cd irrelevant
+python ai_news.py feedback N-12ab34cd known
+python ai_news.py feedback N-12ab34cd later
+python ai_news.py profile
+```
+
+`useful` 和 `later` 会提高对应来源的后续排序，`irrelevant` 和 `known` 会降低；权重设有上下限，系统仍会保留新来源和探索内容。
+
+Hermes Skill 可增加两条路由：
+
+```text
+“AI资讯反馈 <ID> <类型>” -> python ai_news.py feedback <ID> <类型>
+“AI资讯画像” -> python ai_news.py profile
+```
+
+## 部署到 Hermes
+
+先预览文件差异，确认后再应用：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 -Apply
+```
+
+脚本只同步白名单文件，不覆盖在线环境中扩展过的 `feishu_api.py`；被替换文件会先备份到 Hermes `scripts/backup/`。
 
 ## 常见问题
 

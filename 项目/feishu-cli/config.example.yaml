@@ -9,3 +9,13 @@ ddl_watch:
   - keyword: "示例任务"
     ddl: "2026-12-31"
     msg: "示例任务距离截止日期还有 {days}"
+
+news_profile:
+  interests:
+    - "Agent"
+    - "MCP"
+    - "AI 编程"
+    - "运营"
+    - "效率工具"
+  history_days: 14
+  source_limit: 3

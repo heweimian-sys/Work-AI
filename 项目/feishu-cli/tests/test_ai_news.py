@@ -22,6 +22,19 @@ class AiNewsTest(unittest.TestCase):
         self.assertEqual(sum(item["source"] == "A" for item in selected), 2)
         self.assertTrue(any(item["source"] == "B" for item in selected))
 
+    def test_rank_uses_interests_and_feedback(self):
+        items = [
+            {"title": "Agent workflow", "url": "https://a/1", "source": "A", "score": 0},
+            {"title": "General news", "url": "https://b/1", "source": "B", "score": 0},
+        ]
+        ranked = ai_news.rank_items(
+            items,
+            {"interests": ["Agent"]},
+            {"B": -1.0},
+        )
+        self.assertEqual(ranked[0]["source"], "A")
+        self.assertEqual(ranked[0]["interest_hits"], 1)
+
     @patch("ai_news._llm")
     def test_generate_uses_original_url(self, llm):
         llm.return_value = '[{"id":"item-1","title_zh":"可信标题","reason":"与当前项目相关"}]'

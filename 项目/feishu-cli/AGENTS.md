@@ -59,6 +59,7 @@ feishu_api.py ──────────────────────
     │     ├── daily_report.py ── (日报系统)         │ │
     │     └── skill_trainer.py ── (技能训练)        │ │
     ├── ai_news.py ── (AI 资讯聚合, 用 GLM 翻译)   │─┘
+    │     └── news_store.py ── (推送历史/反馈/偏好) │
     └── weekly_data.py ── (周报数据采集)            │
 ```
 
@@ -77,6 +78,8 @@ feishu_api.py ──────────────────────
 4. **Gateway 持久化**: 通过 Windows 启动文件夹实现开机自启
 5. **运行时归属**: Hermes 是当前消息编排层，DeepSeek 是默认模型；Codex 不在在线消息链路中
 6. **训练状态**: 按用户保存在 `FEISHU_CLI_DATA_DIR`，该目录不得提交
+7. **资讯反馈**: `ai_news.py feedback <ID> <useful|irrelevant|known|later>`
+8. **资讯画像**: `config.yaml.news_profile` 可编辑，SQLite 历史不得提交
 
 ## 开发说明
 
@@ -85,3 +88,4 @@ feishu_api.py ──────────────────────
 - `项目/feishu-cli/` 是唯一发布源；部署时由发布流程同步，不手工维护两份源码
 - 密钥/Token 绝不在 Git 中提交
 - 提交前运行 `python -m unittest discover -s tests -v`
+- 部署先运行 `deploy.ps1` 预览，确认后运行 `deploy.ps1 -Apply`
