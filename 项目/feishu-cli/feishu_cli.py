@@ -5,7 +5,6 @@ import json
 import logging
 import sys
 import os
-import re
 from datetime import datetime, timedelta
 
 import yaml
@@ -45,6 +44,17 @@ REMINDERS = {
 
 DDL_WATCH = _config.get("ddl_watch", [])
 
+
+def validate_config(required_docs=None):
+    """校验指定文档 token，返回便于 CLI 展示的错误列表。"""
+    errors = []
+    for name in required_docs or []:
+        if not _docs.get(name):
+            errors.append(f"documents.{name} 未配置")
+    if errors:
+        errors.append("请复制 config.example.yaml 为 config.yaml 后填写")
+    return errors
+
 def check_ddl():
     today = datetime.now()
     alerts = []
@@ -53,7 +63,8 @@ def check_ddl():
         days = (ddl - today).days
         if 0 <= days <= 3:
             label = str(days) + "天" if days > 0 else "就在今天"
-            alerts.append(item["msg"].format(days=label))
+            template = item.get("msg") or f"{item.get('keyword', '任务')}距离截止日期还有 {{days}}"
+            alerts.append(template.format(days=label))
     return alerts
 
 def send_reminder(rtype):
@@ -69,7 +80,7 @@ def send_reminder(rtype):
 
 def search_docs(query, doc_tokens=None):
     if doc_tokens is None:
-        doc_tokens = [LOG_DOC, REPORT_DOC]
+        doc_tokens = [token for token in (LOG_DOC, REPORT_DOC) if token]
     results = []
     for token in doc_tokens:
         try:
@@ -123,6 +134,9 @@ def extract_logs(start, end):
 
 def append_to_log(text, date_str=None):
     """录入笔记到 CLI 笔记文档，带日期戳"""
+    errors = validate_config(["notes"])
+    if errors:
+        raise RuntimeError("；".join(errors))
     if date_str is None:
         date_str = datetime.now().strftime("%Y.%m.%d")
     
@@ -139,21 +153,18 @@ def append_to_log(text, date_str=None):
 
 def update_ddl(keyword, new_date):
     """更新 DDL 跟踪，并写回 config.yaml。"""
+    try:
+        datetime.strptime(new_date, "%Y-%m-%d")
+    except ValueError:
+        return "⚠️ 日期格式无效，请使用 YYYY-MM-DD"
     for item in DDL_WATCH:
-        if keyword in item.get("keyword", ""):
+        if keyword.casefold() in item.get("keyword", "").casefold():
             old = item["ddl"]
             item["ddl"] = new_date
-            # 写回配置文件
             config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
             _config["ddl_watch"] = DDL_WATCH
-            with open(config_path, "r", encoding="utf-8") as f:
-                old_yaml = f.read()
-            # 简单文本替换更新
-            pattern = rf'("{re.escape(keyword)}"\s*\n\s*ddl:\s*"){re.escape(old)}"'
-            if re.search(pattern, old_yaml):
-                new_yaml = re.sub(pattern, rf'\g<1>{new_date}"', old_yaml)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    f.write(new_yaml)
+            with open(config_path, "w", encoding="utf-8") as file:
+                yaml.safe_dump(_config, file, allow_unicode=True, sort_keys=False)
             logger.info("DDL 已更新并持久化: %s %s → %s", keyword, old, new_date)
             return f"✅ {item['keyword']} DDL 已更新：{old} → {new_date}"
     return f"⚠️ 未找到关键词「{keyword}」的DDL"
@@ -196,6 +207,12 @@ if __name__ == "__main__":
             send_text(OPEN_ID, result)
         else:
             print("用法: ddl-set <关键词> <日期>")
+    elif cmd == "doctor":
+        errors = validate_config(["log", "notes", "report"])
+        if not OPEN_ID:
+            errors.append("FEISHU_OPEN_ID 未配置")
+        print("⚠️ " + "\n⚠️ ".join(errors) if errors else "✅ 配置检查通过")
+        raise SystemExit(1 if errors else 0)
     else:
         print("📱 逐风的飞书 CLI 工具集\n"
               "  remind daily    每日日志提醒\n"
@@ -205,4 +222,5 @@ if __name__ == "__main__":
               "  logs 开始 结束   提取日志条目\n"
               "  note <内容>     录入今日日志\n"
               "  ddl-set <关键词> <日期>  更新DDL\n"
-              "  ddl             查看近期截止日")
+              "  ddl             查看近期截止日\n"
+              "  doctor          检查本地配置")

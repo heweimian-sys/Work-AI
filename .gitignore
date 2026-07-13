@@ -8,6 +8,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+项目/feishu-cli/config.yaml
+项目/feishu-cli/.data/
 
 # 构建产物
 dist/

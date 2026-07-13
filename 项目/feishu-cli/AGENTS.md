@@ -1,6 +1,6 @@
 # AGENTS.md — 飞书 CLI 工作助手
 
-> 本文档供 AI Agent（Craft Agent、Hermes、Claude Code 等）阅读，用于理解项目架构和配置方式。
+> 本文档供 AI Agent（Codex、Hermes、Claude Code 等）阅读，用于理解项目架构和配置方式。
 
 ## 项目概述
 
@@ -29,11 +29,7 @@ OPENAI_BASE_URL      # https://api.deepseek.com/v1
 
 ### 文档 Token 配置
 
-| 用途 | Token | 说明 |
-|------|-------|------|
-| 工作日志 | `EZc9wq9phi1ggUk6RDvcuUAMnuG` | 逐风每日日志（知识库文档） |
-| CLI 笔记 | `JWxZdd77kozT9FxGd2Tc3d41nTg` | CLI 私聊录入归档 |
-| 正式周报 | `VApTdvmZhoH2TBx3hGbcGIYCn0g` | 独立 docx，CLI 可全自动写入 |
+复制 `config.example.yaml` 为 `config.yaml`，填写工作日志、CLI 笔记、正式周报和参考周报的 token。个人 token 不写入本文档，也不提交到 Git。
 
 ### Hermes Gateway 配置
 
@@ -71,7 +67,7 @@ feishu_api.py ──────────────────────
 - 飞书 API (`open.feishu.cn`): 直连
 - DeepSeek API (`api.deepseek.com`): 直连
 - 智谱 API (`open.bigmodel.cn`): 直连
-- HN/GitHub/Dev.to/Lobsters/ArXiv: 需要代理 `127.0.0.1:10809`
+- HN/GitHub/Dev.to/Lobsters/ArXiv: 默认直连；需要代理时配置 `FEISHU_CLI_HTTP_PROXY`
 
 ## 关键限制
 
@@ -79,10 +75,13 @@ feishu_api.py ──────────────────────
 2. **群聊消息**: 核心群未添加机器人，无法自动读取群消息
 3. **raw_content vs block API**: 文档读取优先 raw_content（速度快），纯 block 文档回退到 block API
 4. **Gateway 持久化**: 通过 Windows 启动文件夹实现开机自启
+5. **运行时归属**: Hermes 是当前消息编排层，DeepSeek 是默认模型；Codex 不在在线消息链路中
+6. **训练状态**: 按用户保存在 `FEISHU_CLI_DATA_DIR`，该目录不得提交
 
 ## 开发说明
 
 - 脚本入口在 `~/hermes-agent/scripts/`（开发版）
 - GitHub 版本在 `Work-AI/项目/feishu-cli/`（发布版）
-- 修改脚本后需同步两个位置
+- `项目/feishu-cli/` 是唯一发布源；部署时由发布流程同步，不手工维护两份源码
 - 密钥/Token 绝不在 Git 中提交
+- 提交前运行 `python -m unittest discover -s tests -v`

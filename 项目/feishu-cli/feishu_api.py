@@ -2,14 +2,14 @@
 飞书 API 封装
 凭据从 ~/.hermes/.env 自动加载
 """
-import os, json, sys, time
+import os, json, time
 import requests
 
 def _load_env():
     """从 ~/.hermes/.env 加载环境变量"""
     env_file = os.path.expanduser("~/.hermes/.env")
     if os.path.exists(env_file):
-        with open(env_file) as f:
+        with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -23,18 +23,26 @@ APP_ID = os.environ.get("FEISHU_APP_ID", "")
 APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
 BASE = "https://open.feishu.cn/open-apis"
 
-if not APP_ID or not APP_SECRET:
-    raise RuntimeError("请设置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量，或在 ~/.hermes/.env 中配置")
-
 _token = None
 _token_expire = 0
 
+
+def validate_credentials():
+    """在真正访问飞书前校验凭据，允许工具模块被离线测试。"""
+    if not APP_ID or not APP_SECRET:
+        raise RuntimeError(
+            "请设置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量，"
+            "或在 ~/.hermes/.env 中配置"
+        )
+
 def _get_token():
     global _token, _token_expire
+    validate_credentials()
     if _token and time.time() < _token_expire:
         return _token
     resp = requests.post(f"{BASE}/auth/v3/tenant_access_token/internal",
                          json={"app_id": APP_ID, "app_secret": APP_SECRET}, timeout=10)
+    resp.raise_for_status()
     data = resp.json()
     if data.get("code") != 0:
         raise Exception(f"获取token失败: {data}")
@@ -46,20 +54,25 @@ def _get(path, params=None):
     token = _get_token()
     r = requests.get(f"{BASE}{path}", headers={"Authorization": f"Bearer {token}"},
                      params=params, timeout=30)
+    r.raise_for_status()
     return r.json()
 
 def _post(path, body=None, params=None):
     token = _get_token()
     r = requests.post(f"{BASE}{path}", headers={"Authorization": f"Bearer {token}"},
                       json=body, params=params, timeout=30)
+    r.raise_for_status()
     return r.json()
 
 def _delete(path, body=None):
     token = _get_token()
     r = requests.delete(f"{BASE}{path}", headers={"Authorization": f"Bearer {token}"},
                          json=body, timeout=30)
-    try: return r.json()
-    except: return {"code": r.status_code}
+    r.raise_for_status()
+    try:
+        return r.json()
+    except requests.exceptions.JSONDecodeError:
+        return {"code": 0}
 
 # ═══ 文档操作 ═══
 
