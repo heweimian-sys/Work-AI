@@ -1,0 +1,6 @@
+name: feishu-cli-router
+version: "1.0.0"
+description: "Deterministic Feishu command routing and owner/group permission policy."
+author: "Work-AI"
+hooks:
+  - pre_gateway_dispatch

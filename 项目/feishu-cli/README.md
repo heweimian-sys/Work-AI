@@ -67,6 +67,16 @@ python feishu_cli.py doctor
 
 ### 3. 启动
 
+首次升级先安装 Hermes 集成（默认仅预览，`-Apply` 才修改；旧配置自动备份）：
+
+```powershell
+.\deploy.ps1 -Apply
+.\configure-hermes.ps1
+.\configure-hermes.ps1 -Apply
+```
+
+配置唯一来源是 `%LOCALAPPDATA%\hermes`。脚本会安装固定指令路由，并把 AI 资讯与每晚 21:30 工作复盘配置为 `--no-agent` 定时任务。
+
 推荐安装 Windows 登录自启动。它不依赖 Codex，但电脑必须开机、完成登录且不能休眠：
 
 ```powershell
@@ -144,6 +154,8 @@ Hermes Skill 可增加两条路由：
 ```
 
 ## 部署到 Hermes
+
+候选记忆只能是 `lesson`、`project`、`workflow`，批准时必须运行 `python memory_candidates.py approve M-xxxxxxxx --confirm`。群聊中仅管理员可写入，其他成员默认只能查询公开 AI 资讯；晚间复盘不能自动修改安全规则、权限、身份或长期画像。
 
 先预览文件差异，确认后再应用：
 

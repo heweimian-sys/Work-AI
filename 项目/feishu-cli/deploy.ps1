@@ -8,6 +8,9 @@ $Source = $PSScriptRoot
 $Files = @(
     "ai_news.py",
     "news_store.py",
+    "command_router.py",
+    "memory_candidates.py",
+    "nightly_review.py",
     "config.py",
     "date_utils.py",
     "feishu_cli.py",

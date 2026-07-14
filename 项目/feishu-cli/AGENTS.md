@@ -14,7 +14,7 @@
 
 ## 配置入口
 
-所有敏感信息从 `~/.hermes/.env` 读取，代码中不含密钥。
+所有敏感信息从 `%LOCALAPPDATA%/hermes/.env` 读取，代码中不含密钥。旧 `~/.hermes` 仅作为迁移来源。
 
 ### 必需配置
 
@@ -82,6 +82,11 @@ feishu_api.py ──────────────────────
 8. **资讯画像**: `config.yaml.news_profile` 可编辑，SQLite 历史不得提交
 
 ## 开发说明
+
+- `%LOCALAPPDATA%/hermes` 是唯一运行时配置目录。
+- 固定指令由 `feishu-cli-router` 确定性执行；资讯和复盘 Cron 必须使用 `--no-agent`。
+- 候选记忆必须显式 `--confirm` 批准；禁止自动修改安全、权限、身份和长期画像。
+- 群聊仅管理员可写，其他成员默认只有公开资讯查询权限。
 
 - 脚本入口在 `~/hermes-agent/scripts/`（开发版）
 - GitHub 版本在 `Work-AI/项目/feishu-cli/`（发布版）
