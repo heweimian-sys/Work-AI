@@ -32,6 +32,20 @@ export async function sendMessage(chatId, text, messageType = 'text', card) {
       params: { receive_id_type: 'chat_id' },
       data,
     });
+
+    if (card) {
+      const footerText = appendLibraryFooter('');
+      if (footerText) {
+        await client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: {
+            receive_id: chatId,
+            msg_type: 'text',
+            content: JSON.stringify({ text: footerText }),
+          },
+        });
+      }
+    }
   } catch (err) {
     console.error('[SendMessage] 发送失败:', err.message);
   }
