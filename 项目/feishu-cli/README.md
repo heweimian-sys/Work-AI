@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 ### 2. 配置
 
-在 `~/.hermes/.env` 中填入：
+复制 `.env.example` 的字段到 `~/.hermes/.env`，再填入自己的值：
 
 ```env
 FEISHU_APP_ID=cli_xxx        # 飞书应用 ID
@@ -67,14 +67,19 @@ python feishu_cli.py doctor
 
 ### 3. 启动
 
-```bash
-# 方式1: 开机自启（推荐）
-# 将 start-gateway.bat 放入 Windows 启动文件夹：
-# Win+R → shell:startup → 粘贴 bat 文件
+推荐安装 Windows 登录自启动。它不依赖 Codex，但电脑必须开机、完成登录且不能休眠：
 
-# 方式2: 手动启动
-cd ~/hermes-agent
-./venv/Scripts/hermes gateway run --accept-hooks
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-autostart.ps1 -StartNow
+```
+
+该命令会创建安全启动脚本和启动文件夹快捷方式。启动命令不包含 `--accept-hooks`，不会自动批准未来未知的 Shell Hook。
+
+手动启动：
+
+```powershell
+cd $HOME\hermes-agent
+.\venv\Scripts\hermes.exe gateway run
 ```
 
 ### 4. 验证
@@ -88,7 +93,10 @@ feishu-cli/
 ├── README.md           # 你正在看的
 ├── AGENTS.md           # 给 AI Agent 看的配置说明
 ├── requirements.txt    # Python 运行依赖
+├── .env.example        # 无密钥的环境变量模板
 ├── config.example.yaml # 无敏感信息的业务配置模板
+├── start-gateway-safe.bat # 安全启动 Gateway
+├── install-autostart.ps1  # 安装 Windows 登录自启动
 ├── date_utils.py       # 日志日期解析
 ├── feishu_api.py       # 飞书 API 封装（文档/日历/消息）
 ├── feishu_cli.py       # CLI 工具集（DDL/搜索/录入）
@@ -149,7 +157,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 -Apply
 ## 常见问题
 
 **Q: 飞书机器人没反应？**
-A: 确认 Gateway 在运行。终端执行 `ps aux | grep hermes` 看进程。
+A: 执行 `hermes gateway status`。显示 `stopped` 时，运行 `install-autostart.ps1 -StartNow`。
+
+**Q: 关机后机器人还能回复吗？**
+A: 不能。本机模式要求电脑开机、登录 Windows、网络和代理正常且没有休眠；需要全天在线时应部署到云服务器。
 
 **Q: AI 日报全是英文？**
 A: 检查 GLM_API_KEY 是否配置正确。

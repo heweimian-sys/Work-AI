@@ -75,7 +75,7 @@ feishu_api.py ──────────────────────
 1. **知识库写入**: 飞书知识库文档需要 wiki 编辑权限，当前应用只能写入独立 docx
 2. **群聊消息**: 核心群未添加机器人，无法自动读取群消息
 3. **raw_content vs block API**: 文档读取优先 raw_content（速度快），纯 block 文档回退到 block API
-4. **Gateway 持久化**: 通过 Windows 启动文件夹实现开机自启
+4. **Gateway 持久化**: 通过 `install-autostart.ps1` 安装 Windows 登录自启动，不使用 `--accept-hooks`
 5. **运行时归属**: Hermes 是当前消息编排层，DeepSeek 是默认模型；Codex 不在在线消息链路中
 6. **训练状态**: 按用户保存在 `FEISHU_CLI_DATA_DIR`，该目录不得提交
 7. **资讯反馈**: `ai_news.py feedback <ID> <useful|irrelevant|known|later>`
@@ -89,3 +89,4 @@ feishu_api.py ──────────────────────
 - 密钥/Token 绝不在 Git 中提交
 - 提交前运行 `python -m unittest discover -s tests -v`
 - 部署先运行 `deploy.ps1` 预览，确认后运行 `deploy.ps1 -Apply`
+- 自启动使用 `install-autostart.ps1 -StartNow`，不得恢复自动批准未知 Hook 的旧脚本
