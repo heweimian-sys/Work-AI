@@ -9,7 +9,7 @@ import { createScysMcpClient } from '../lib/mcp_client.js';
 import { insertIfNotExist } from '../lib/bitable.js';
 import { extractFields } from '../lib/ai.js';
 import { buildDocumentText } from '../lib/embedding.js';
-import { assessResourceRelevance } from './relevance.js';
+import { assessResourceRelevance, classifyLibraryMaterial } from './relevance.js';
 import { buildMcpShell, mergeMcpTags } from './mcp_shell.js';
 
 const DEFAULT_LIMIT = 20;
@@ -409,7 +409,7 @@ function materialToFields(material, aiFields, relevance) {
     relevance?.reason ? `价值判断：${relevance.reason}` : '',
   ].filter(Boolean).join('\n');
 
-  return {
+  const fields = {
     '文件名': material.title,
     '活动名称': aiFields.活动名称 || `${material.title}｜生财MCP`,
     '分享人': aiFields.分享人 || material.author || '',
@@ -427,6 +427,7 @@ function materialToFields(material, aiFields, relevance) {
     '文件链接': sourceLink,
     '原文链接': sourceLink,
     '附件链接': Array.isArray(material.attachments) && material.attachments.length ? material.attachments.join('\n') : '',
+    '抽取正文': material.content || material.summary || '',
     '归档时间': Date.now(),
     '是否有实操': !!aiFields.是否有实操,
     '是否有案例': !!aiFields.是否有案例,
@@ -434,6 +435,12 @@ function materialToFields(material, aiFields, relevance) {
     '文件大小': material.content ? String(material.content.length) : '',
     '内容指纹': fingerprint,
   };
+  const libraryClass = classifyLibraryMaterial(fields);
+  fields['可用状态'] = libraryClass.status;
+  fields['资料类型'] = libraryClass.materialType;
+  fields['来源可信度'] = libraryClass.sourceConfidence;
+  fields['处理建议'] = libraryClass.suggestion;
+  return fields;
 }
 
 async function indexRecord(recordId, fields) {

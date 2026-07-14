@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { client } from '../lib/feishu.js';
 import { syncFieldMapping } from '../lib/bitable.js';
-import { assessResourceRelevance } from '../tools/relevance.js';
+import { assessResourceRelevance, classifyLibraryMaterial } from '../tools/relevance.js';
 
 const APP_TOKEN = process.env.BITABLE_APP_TOKEN;
 const TABLE_ID = process.env.BITABLE_TABLE_ID;
@@ -105,6 +105,8 @@ async function listAllRecords(limit = 2000) {
 
 function shouldExport(record, options) {
   const fields = record.fields || {};
+  const usability = fields['可用状态'] || classifyLibraryMaterial(fields).status;
+  if (!options.includeLowValue && usability !== '可用') return false;
   if (!options.includePending && isPending(fields)) return false;
   if (!options.includeLowValue && !assessResourceRelevance(fields).keep) return false;
   if (!options.includeIncomplete && REQUIRED_FIELDS.some(name => isEmpty(fields[name]))) return false;
@@ -118,6 +120,7 @@ function toKnowledgeDoc(record) {
   const tags = text(fields['主题标签']);
   const corePoints = lines(fields['核心观点']);
   const source = sourceType(fields);
+  const usability = fields['可用状态'] || classifyLibraryMaterial(fields).status;
 
   const contentLines = [
     `# ${title}`,
@@ -160,6 +163,10 @@ function toKnowledgeDoc(record) {
       confidence: Number(fields['AI置信度'] || 0),
       completeness: Number(fields['文档完整度'] || 0),
       archivedAt: text(fields['归档时间']),
+      usability,
+      materialType: text(fields['资料类型']),
+      sourceConfidence: text(fields['来源可信度']),
+      nextAction: text(fields['处理建议']),
     },
   };
 }

@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import { client } from '../lib/feishu.js';
 import { syncFieldMapping } from '../lib/bitable.js';
-import { assessResourceRelevance } from './relevance.js';
+import { assessResourceRelevance, classifyLibraryMaterial } from './relevance.js';
 
 const APP_TOKEN = process.env.BITABLE_APP_TOKEN;
 const TABLE_ID = process.env.BITABLE_TABLE_ID;
@@ -78,6 +78,7 @@ function buildAudit(records) {
   const fingerprintMap = new Map();
   const typeCount = {};
   const sourceCount = {};
+  const usabilityCount = {};
   const missingShell = [];
   const pending = [];
   const lowValue = [];
@@ -92,9 +93,11 @@ function buildAudit(records) {
     const fingerprint = text(fields['内容指纹']);
     const missing = missingShellFields(fields);
     const relevance = assessResourceRelevance(fields);
+    const usability = fields['可用状态'] || classifyLibraryMaterial(fields).status;
 
     typeCount[type] = (typeCount[type] || 0) + 1;
     sourceCount[source] = (sourceCount[source] || 0) + 1;
+    usabilityCount[usability] = (usabilityCount[usability] || 0) + 1;
     if (source === 'MCP') mcpCount++;
     if (fingerprint) {
       if (!fingerprintMap.has(fingerprint)) fingerprintMap.set(fingerprint, []);
@@ -121,10 +124,13 @@ function buildAudit(records) {
     duplicateFingerprintGroups: duplicates.length,
     duplicateRecordCount: duplicates.reduce((sum, item) => sum + item.count - 1, 0),
     lowValueCount: lowValue.length,
+    usableCount: usabilityCount['可用'] || 0,
+    usableRate: percent(usabilityCount['可用'] || 0, records.length),
     mcpCount,
     mcpRate: percent(mcpCount, records.length),
     typeCount,
     sourceCount,
+    usabilityCount,
     samples: {
       missingShell: missingShell.slice(0, 10),
       pending: pending.slice(0, 10),
@@ -142,6 +148,11 @@ export function formatAuditReport(audit) {
     .join('，');
 
   const sourceTop = Object.entries(audit.sourceCount)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => `${name}:${count}`)
+    .join('，');
+
+  const usabilityTop = Object.entries(audit.usabilityCount)
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => `${name}:${count}`)
     .join('，');
@@ -164,8 +175,10 @@ export function formatAuditReport(audit) {
   return [
     '📊 资料库体检报告',
     `总记录：${audit.total} 条`,
+    `正式可用资料：${audit.usableCount}/${audit.total}（${audit.usableRate}%）`,
     `可检索完整度：${audit.searchReady}/${audit.total}（${audit.searchReadyRate}%）`,
     `MCP资料：${audit.mcpCount} 条（${audit.mcpRate}%）`,
+    `可用状态：${usabilityTop || '暂无'}`,
     `来源分布：${sourceTop || '暂无'}`,
     `类型Top：${typeTop || '暂无'}`,
     `风险项：${risks.length ? risks.join('，') : '暂未发现明显风险'}`,

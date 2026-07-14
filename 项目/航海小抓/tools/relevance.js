@@ -158,6 +158,75 @@ export function assessResourceRelevance(input = {}) {
   return { keep: true, score, reason: hasPositive ? '包含资料相关信号' : '未命中高置信噪音，保守保留' };
 }
 
+export function classifyLibraryMaterial(input = {}) {
+  const fields = input.fields || input;
+  const assessment = assessResourceRelevance(fields);
+  const fileName = normalize(fields['文件名']);
+  const contentType = normalize(fields['内容类型']);
+  const fingerprint = normalize(fields['内容指纹']);
+  const fileLink = extractUrl(fields['文件链接']);
+  const sourceLink = extractUrl(fields['原文链接']);
+  const attachmentLinks = normalize(fields['附件链接']);
+  const extractedText = normalize(fields['抽取正文'] || fields['_fileContent'] || fields['核心观点'] || fields['一句话摘要']);
+  const linkText = [fileLink, sourceLink, attachmentLinks].join('\n');
+  const hasStableLink = /https?:\/\//i.test(linkText) && !/\/file\/test/.test(linkText);
+  const hasDriveFile = /\/file\/[a-zA-Z0-9]+|\/docx\/|\/wiki\/|\/minutes?\//.test(linkText);
+  const hasExtractedText = extractedText.replace(/\s+/g, '').length >= 80;
+  const isImageOnly = IMAGE_FILE_RE.test(fileName) || contentType.includes('图片') || contentType.includes('截图');
+  const isChatRecord = fingerprint.startsWith('text:') || fingerprint.startsWith('forward:') || WEAK_TYPES.includes(contentType);
+  const isMcp = fingerprint.startsWith('mcp:') || /生财MCP/.test(normalize(fields['归档理由']));
+
+  let status = '可用';
+  let materialType = contentType || '资料';
+  let confidence = '中';
+  let suggestion = '可进入网页资料库和 AI 问答。';
+
+  if (!assessment.keep) {
+    status = '低价值';
+    confidence = '低';
+    suggestion = assessment.reason;
+  } else if (!hasStableLink) {
+    status = '待补源';
+    confidence = '低';
+    suggestion = '缺少可打开的原文或文件链接，需要补来源后再上架。';
+  } else if (isChatRecord) {
+    status = hasExtractedText ? '待审核' : '低价值';
+    materialType = '聊天线索';
+    confidence = '低';
+    suggestion = hasExtractedText ? '聊天内容需人工确认是否可沉淀为资料。' : '仅聊天记录，不进入正式资料库。';
+  } else if (isImageOnly && !hasExtractedText) {
+    status = '仅图片';
+    materialType = '图片线索';
+    confidence = '低';
+    suggestion = '只有图片/截图链接，缺少 OCR 正文，需补抽取正文。';
+  } else if (isMcp && !hasDriveFile && !hasExtractedText) {
+    status = '待补源';
+    materialType = 'MCP线索';
+    confidence = '中';
+    suggestion = 'MCP 只返回图片或摘要，需补可引用原文或正文后上架。';
+  } else if (!hasExtractedText && !hasDriveFile) {
+    status = '待补正文';
+    confidence = '中';
+    suggestion = '已有链接，但缺少抽取正文，网页可展示，AI 问答暂不使用。';
+  }
+
+  if (/pdf|PPT|文档|docx|课程|手册|指南|SOP|复盘|案例/i.test(`${fileName} ${contentType}`)) {
+    materialType = materialType === '资料' ? '文档资料' : materialType;
+  }
+
+  return {
+    keep: status === '可用' || status === '待审核' || status === '待补正文',
+    status,
+    materialType,
+    sourceConfidence: confidence,
+    suggestion,
+    hasStableLink,
+    hasExtractedText,
+    score: assessment.score,
+    reason: assessment.reason,
+  };
+}
+
 export function shouldArchiveHistoricalText(text = '') {
   const source = normalize(text);
   if (!source || source.length < 30) return false;

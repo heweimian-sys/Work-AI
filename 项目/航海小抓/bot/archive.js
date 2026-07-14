@@ -18,7 +18,7 @@ import { diagnose } from '../tools/diagnose.js';
 import { acquireLock, releaseLock } from '../lib/lock.js';
 import { buildDocumentText } from '../lib/embedding.js';
 import { getRecentContext } from '../memory/recent_context.js';
-import { assessResourceRelevance } from '../tools/relevance.js';
+import { assessResourceRelevance, classifyLibraryMaterial } from '../tools/relevance.js';
 import { appendLibraryFooter } from '../tools/reply_footer.js';
 
 // 消息级去重：飞书可能推送两次相同事件
@@ -263,6 +263,7 @@ export async function handleArchive(event, options = {}) {
     '是否有案例': !!aiFields.是否有案例,
     '归档理由': aiFields.归档理由 || 'AI自动归档',
     '文件大小': String(fileBuffer.length),
+    '抽取正文': fileContent || '',
     '内容指纹': fingerprint,
     '_fileHash': fileHash,
   };
@@ -280,6 +281,11 @@ export async function handleArchive(event, options = {}) {
     }
     return { action: 'skipped', reason: 'low_value', detail: quality.reason, driveFileToken, driveFileUrl, fileName };
   }
+  const libraryClass = classifyLibraryMaterial(recordFields);
+  recordFields['可用状态'] = libraryClass.status;
+  recordFields['资料类型'] = libraryClass.materialType;
+  recordFields['来源可信度'] = libraryClass.sourceConfidence;
+  recordFields['处理建议'] = libraryClass.suggestion;
 
   let archiveResult = null;
   try {
@@ -531,9 +537,15 @@ export async function handleLinkArchive(event, linkUrl, options = {}) {
     '是否有实操': !!aiFields.是否有实操,
     '是否有案例': !!aiFields.是否有案例,
     '内容指纹': linkFingerprint || `url:${linkUrl}`,
+    '抽取正文': docContent || '',
     '归档理由': aiFields.归档理由 || (fetchNote ? '需人工核查' : 'AI自动归档'),
   };
   if (fetchNote) recordFields['归档理由'] = fetchNote;
+  const libraryClass = classifyLibraryMaterial(recordFields);
+  recordFields['可用状态'] = libraryClass.status;
+  recordFields['资料类型'] = libraryClass.materialType;
+  recordFields['来源可信度'] = libraryClass.sourceConfidence;
+  recordFields['处理建议'] = libraryClass.suggestion;
 
   let archiveResult = null;
   try {

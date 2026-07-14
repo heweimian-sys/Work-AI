@@ -14,7 +14,7 @@ import { client, log } from '../lib/feishu.js';
 import { searchMultiField, searchMultiKeywords, getByRecordIds } from '../lib/bitable.js';
 import { extractSearchKeywords, expandQueryKeywords } from '../lib/ai.js';
 import { embed, buildQueryText } from '../lib/embedding.js';
-import { assessResourceRelevance } from '../tools/relevance.js';
+import { assessResourceRelevance, classifyLibraryMaterial } from '../tools/relevance.js';
 import { recordNoResultSearch } from '../memory/search_feedback.js';
 import { appendLibraryFooter, getLibraryLinks } from '../tools/reply_footer.js';
 
@@ -46,12 +46,16 @@ function isMarkedBad(fields = {}) {
 function isSearchReady(fields = {}) {
   if (isMarkedBad(fields)) return false;
   if (!assessResourceRelevance(fields).keep) return false;
+  const libraryClass = classifyLibraryMaterial(fields);
+  if (libraryClass.status !== '可用') return false;
   return REQUIRED_SEARCH_FIELDS.every(name => normalize(fields[name]).trim());
 }
 
 function qualityBoost(fields = {}) {
   const relevance = assessResourceRelevance(fields);
   if (!relevance.keep) return -999;
+  const libraryClass = classifyLibraryMaterial(fields);
+  if (libraryClass.status !== '可用') return -999;
 
   let score = 0;
   if (normalize(fields['一句话摘要'])) score += 0.15;
