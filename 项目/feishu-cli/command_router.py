@@ -31,6 +31,8 @@ def command_name(text):
         return "feedback"
     if value == "AI资讯画像":
         return "profile"
+    if value in {"自我介绍", "自我介绍一下", "你是谁"}:
+        return "intro"
     return None
 
 
@@ -72,4 +74,10 @@ def execute(text, store=None, fetchers=None):
         return record_feedback(store, match.group(1), match.group(2).casefold())
     if name == "profile":
         return profile_summary(store)
+    if name == "intro":
+        return (
+            "大家好，我是逐风的 AI 工作助手，也是群里的数字同事。\n"
+            "我可以查询 AI 资讯、辅助整理工作信息；涉及录入、反馈和个人资料的写操作只接受管理员指令。\n"
+            "你可以直接问我：AI资讯。"
+        )
     return None

@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
-PUBLIC_GROUP_COMMANDS = {"news", "profile"}
+PUBLIC_GROUP_COMMANDS = {"news", "profile", "intro"}
 WRITE_COMMANDS = {"note", "feedback"}
 
 
@@ -38,6 +38,8 @@ def _command_name(text):
         return "feedback"
     if value == "AI资讯画像":
         return "profile"
+    if value in {"自我介绍", "自我介绍一下", "你是谁"}:
+        return "intro"
     return None
 
 

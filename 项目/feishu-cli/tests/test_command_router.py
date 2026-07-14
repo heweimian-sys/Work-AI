@@ -21,6 +21,7 @@ class CommandRouterTest(unittest.TestCase):
         self.assertEqual(command_name("ddl"), "ddl")
         self.assertEqual(command_name("录入：完成测试"), "note")
         self.assertEqual(command_name("AI资讯反馈 N-1234abcd useful"), "feedback")
+        self.assertEqual(command_name("自我介绍一下"), "intro")
         self.assertIsNone(command_name("帮我分析项目"))
 
     def test_write_classification(self):
