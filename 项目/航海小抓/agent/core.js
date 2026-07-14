@@ -37,8 +37,36 @@ const MAX_ITERATIONS = 3;  // 最多 3 次 LLM 调用
 const BOT_NAME = process.env.BOT_NAME || '航海资料小抓';
 const GROUP_REPLIES_ENABLED = process.env.GROUP_REPLIES_ENABLED === 'true';
 
+function splitEnvList(value = '') {
+  return String(value || '').split(/[,，;\s]+/).map(v => v.trim()).filter(Boolean);
+}
+
+function isOpsUser(userId = '') {
+  const opsIds = splitEnvList(process.env.OPS_USER_OPEN_ID);
+  const adminIds = splitEnvList(process.env.ADMIN_OPEN_IDS);
+  return [...opsIds, ...adminIds].includes(userId);
+}
+
 function shouldReplyInCurrentChat(event) {
   return event.isP2P || event.isAtBot || GROUP_REPLIES_ENABLED;
+}
+
+function canRunAdminCommand(event) {
+  return event.isP2P || isOpsUser(event.userId);
+}
+
+function extractMcpQuery(text = '') {
+  let cleaned = text
+    .replace(new RegExp(BOT_NAME, 'g'), ' ')
+    .replace(/@[^\s]+/g, ' ')
+    .replace(/mcp|生财|有术/gi, ' ')
+    .replace(/同步|拉取|抓取|导入|入库|归档|更新|sync|import/gi, ' ')
+    .replace(/资料|帖子|内容|搜索|关键词|工具|检查|查看|列表|有哪些/gi, ' ')
+    .replace(/\d+\s*(条|个)/g, ' ')
+    .replace(/预览|测试|dryrun|dry-run/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || '';
 }
 
 function parseMcpCommand(text = '') {
@@ -62,9 +90,12 @@ function parseMcpCommand(text = '') {
   if (/同步|拉取|抓取|导入|入库|归档|更新|sync|import/.test(compact)) {
     const dryRun = /预览|测试|dryrun|dry-run/.test(compact);
     const limitMatch = text.match(/(\d+)\s*(条|个)?/);
+    const query = extractMcpQuery(text);
     return {
       inspectOnly: false,
       dryRun,
+      query: query || undefined,
+      toolName: query ? 'searchTopic' : undefined,
       limit: limitMatch ? Number(limitMatch[1]) : 30,
       perQueryLimit: 5,
     };
@@ -133,9 +164,15 @@ export async function handleEvent(event) {
       return;
     }
 
-    const mcpCommand = event.isP2P ? parseMcpCommand(userText) : null;
+    const mcpCommand = canRunAdminCommand(event) ? parseMcpCommand(userText) : null;
     if (mcpCommand) {
       log('info', `命中 MCP 确定性指令: ${JSON.stringify(mcpCommand)}`);
+      if (shouldReplyInCurrentChat(event)) {
+        const actionText = mcpCommand.inspectOnly
+          ? '收到，正在检查生财 MCP 工具。'
+          : `收到，开始同步生财 MCP 资料${mcpCommand.query ? `：${mcpCommand.query}` : ''}。`;
+        await sendMessage(chatId, actionText);
+      }
       const result = await executeToolCall('sync_scys_mcp', { ...mcpCommand, _event: event });
       const parsed = typeof result === 'string' ? JSON.parse(result) : result;
       const replyText = parsed.replyText || (parsed.success ? '生财 MCP 处理完成。' : '生财 MCP 处理失败。');
@@ -183,8 +220,8 @@ export async function handleEvent(event) {
 - 清理表格：用户说「清理重复记录」「去重」→ 调 cleanup_table
 - 资料库体检：用户说「资料库体检」「检查资料库」「看看资料库健康度」→ 调 audit_library
 - 整理群标签：用户说「整理这个群的记录」→ 调 organize_by_group
-- 生财MCP：管理员私聊说「检查MCP工具」「同步MCP资料」「从生财MCP拉资料」→ 调 sync_scys_mcp
-- 航海手册MCP：管理员私聊说「同步航海手册」「拉取航海手册」「更新航海手册」→ 调 sync_scys_mcp，并传 mode=manual_chapters
+- 生财MCP：管理员私聊或在群里@你说「检查MCP工具」「同步MCP资料 小程序」「从生财MCP拉资料」→ 调 sync_scys_mcp
+- 航海手册MCP：管理员私聊或在群里@你说「同步航海手册」「拉取航海手册」「更新航海手册」→ 调 sync_scys_mcp，并传 mode=manual_chapters
 - 归档链接：用户发了飞书链接（docx/wiki/sheets/base/minutes）→ **调 archive_link** 把链接内容归档
 - 归档文件：用户发了文件（PDF/PPT/图片）→ **调 archive_file** 把文件归档
 
@@ -192,7 +229,7 @@ export async function handleEvent(event) {
 - 用户发了飞书链接（URL 包含 feishu.cn）→ **必须调 archive_link**，不要当成查询
 - 用户发了文件（PDF/PPT/图片等）→ **必须调 archive_file**，不要当成查询
 - 纯名词/短词一律视作搜索 → 调 query_knowledge
-- MCP 同步只允许私聊/管理员主动触发；群里普通用户提 MCP 时不要同步，只说明需要管理员私聊操作。
+- MCP 同步只允许管理员私聊或管理员在群里@你主动触发；群里普通用户提 MCP 时不要同步，只说明需要管理员操作。
 - **群聊自持规则**：如果用户在群里没有@你，只有明显的搜索/询问（如问资料、找文档）才回复。闲聊、打招呼、群友之间的对话不要回复。不确定时，优先沉默。
 
 ## 多轮对话规则

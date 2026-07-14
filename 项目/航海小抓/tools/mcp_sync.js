@@ -44,7 +44,7 @@ const DEFAULT_BATCH_QUERIES = [
 
 function normalizeText(value) {
   if (value == null) return '';
-  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'string') return value.replace(/<\/?em>/gi, '').replace(/<[^>]+>/g, '').trim();
   if (Array.isArray(value)) return value.map(normalizeText).filter(Boolean).join('\n');
   if (typeof value === 'object') {
     if (value.text || value.content || value.summary || value.title) {
@@ -104,8 +104,62 @@ function pick(obj, keys) {
   return '';
 }
 
+function unwrapMcpItem(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  if (raw.topicDTO && typeof raw.topicDTO === 'object') {
+    const topic = raw.topicDTO;
+    const user = raw.topicUserDTO || {};
+    return {
+      ...raw,
+      ...topic,
+      detailUrl: raw.detailUrl || topic.detailUrl,
+      author: pick(user, ['userName', 'name', 'nickname', 'nickName']) || pick(topic, ['author', 'nickname', 'userName']),
+      rawResult: raw,
+    };
+  }
+  if (raw.projectLibDTO && typeof raw.projectLibDTO === 'object') {
+    return { ...raw, ...raw.projectLibDTO, rawResult: raw };
+  }
+  return raw;
+}
+
+function normalizeUrl(value) {
+  const text = normalizeText(value);
+  if (!/^https?:\/\//i.test(text)) return '';
+  try {
+    return new URL(text).toString();
+  } catch {
+    return '';
+  }
+}
+
+function collectUrls(value) {
+  if (!value) return [];
+  if (typeof value === 'string') return [normalizeUrl(value)].filter(Boolean);
+  if (Array.isArray(value)) return value.flatMap(collectUrls);
+  if (typeof value === 'object') {
+    return [
+      value.url,
+      value.link,
+      value.href,
+      value.hrefUrl,
+      value.detailUrl,
+      value.image,
+      value.imageUrl,
+      value.fileUrl,
+    ].flatMap(collectUrls);
+  }
+  return [];
+}
+
+function makeUrlCell(url, text) {
+  const link = normalizeUrl(url);
+  if (!link) return '';
+  return { link, text: normalizeText(text) || link };
+}
+
 function normalizeMaterial(raw, index = 0, sourceTool = '') {
-  const item = raw && typeof raw === 'object' ? raw : { content: normalizeText(raw) };
+  const item = raw && typeof raw === 'object' ? unwrapMcpItem(raw) : { content: normalizeText(raw) };
   const id = normalizeText(pick(item, [
     'id',
     'projectId',
@@ -127,7 +181,8 @@ function normalizeMaterial(raw, index = 0, sourceTool = '') {
     `MCP资料_${index + 1}`;
   const summary = normalizeText(pick(item, ['summary', 'description', 'desc', 'abstract', 'brief']));
   const content = normalizeText(pick(item, ['content', 'text', 'markdown', 'body', 'detail', 'articleContent', 'highlightArticleContent', 'highlightText'])) || summary;
-  const url = normalizeText(pick(item, ['url', 'link', 'source_url', 'web_url', 'href', 'hrefUrl', 'detailUrl']));
+  const attachments = collectUrls(pick(item, ['imageList', 'questionImages', 'miniQuestionImageList', 'images', 'files', 'attachments']));
+  const url = normalizeUrl(pick(item, ['url', 'link', 'source_url', 'web_url', 'href', 'hrefUrl', 'detailUrl'])) || attachments[0] || '';
   const author = normalizeText(pick(item, ['author', 'creator', 'user_name', 'nickname', 'speaker', 'shareUserNickName']));
   const inferredType =
     sourceTool === 'activityManualSearch' || /manual|chapter|航海手册|章节/i.test(sourceTool) ? '航海手册' :
@@ -147,6 +202,7 @@ function normalizeMaterial(raw, index = 0, sourceTool = '') {
     summary,
     content,
     url,
+    attachments,
     author,
     type,
     tags,
@@ -215,7 +271,8 @@ function buildToolArgs(tool, options) {
 
   for (const key of Object.keys(schemaProps)) {
     const prop = schemaProps[key] || {};
-    if (/query|keyword|q|search/i.test(key)) args[key] = query;
+    if (/target.*(user|xq|group).*id|targetXqGroupNumber/i.test(key)) continue;
+    if (/^keyword$/i.test(key) || /^query$/i.test(key) || /^q$/i.test(key) || /^search(Text|Keyword|Query)?$/i.test(key)) args[key] = query;
     else if (/limit|size|pageSize|perPage|count/i.test(key)) args[key] = Math.min(limit, 50);
     else if (/pageIndex/i.test(key)) args[key] = 1;
     else if (/page/i.test(key)) args[key] = 1;
@@ -342,9 +399,12 @@ function materialToFields(material, aiFields, relevance) {
   const shell = buildMcpShell(material);
   const fingerprintSource = material.url || material.id || `${material.title}:${material.content.slice(0, 200)}`;
   const fingerprint = 'mcp:' + crypto.createHash('sha256').update(fingerprintSource).digest('hex');
+  const sourceLink = makeUrlCell(material.url, material.title);
   const sourceNote = [
     '来源：生财MCP',
     material.id ? `外部ID：${material.id}` : '',
+    material.url ? `原文链接：${material.url}` : '',
+    material.attachments?.length ? `附件链接数：${material.attachments.length}` : '',
     material.updatedAt ? `外部更新时间：${material.updatedAt}` : '',
     relevance?.reason ? `价值判断：${relevance.reason}` : '',
   ].filter(Boolean).join('\n');
@@ -364,8 +424,9 @@ function materialToFields(material, aiFields, relevance) {
     '文档完整度': aiFields.文档完整度 || shell.completeness,
     '解决的问题': aiFields.解决的问题 || shell.problem,
     'AI置信度': aiFields.置信度 || 0.5,
-    '文件链接': material.url ? { link: material.url, text: material.title } : '',
-    '原文链接': material.url ? { link: material.url, text: material.title } : '',
+    '文件链接': sourceLink,
+    '原文链接': sourceLink,
+    '附件链接': Array.isArray(material.attachments) && material.attachments.length ? material.attachments.join('\n') : '',
     '归档时间': Date.now(),
     '是否有实操': !!aiFields.是否有实操,
     '是否有案例': !!aiFields.是否有案例,
@@ -383,13 +444,31 @@ async function indexRecord(recordId, fields) {
   addToIndex(recordId, text);
 }
 
+async function insertMcpFields(fields, material) {
+  try {
+    return { result: await insertIfNotExist(fields), fields, degraded: false };
+  } catch (err) {
+    if (!/URLFieldConvFail|URL.*Conv|url/i.test(err.message || '')) throw err;
+    const fallbackFields = {
+      ...fields,
+      '文件链接': '',
+      '原文链接': '',
+      '归档理由': [fields['归档理由'], material.url ? `链接字段写入失败，原链接：${material.url}` : '链接字段写入失败，已跳过URL字段'].filter(Boolean).join('\n'),
+    };
+    log('warn', `MCP URL字段写入失败，改为无链接入库: ${material.title}`);
+    return { result: await insertIfNotExist(fallbackFields), fields: fallbackFields, degraded: true };
+  }
+}
+
 async function persistMcpMaterial(material, { dryRun = false, forceKeep = false } = {}) {
-  const ai = await extractFields(
-    material.title,
-    ['来源：生财MCP', material.summary, material.tags].filter(Boolean).join('\n'),
-    material.author,
-    material.content || material.summary || null
-  );
+  const ai = dryRun
+    ? {}
+    : await extractFields(
+      material.title,
+      ['来源：生财MCP', material.summary, material.tags].filter(Boolean).join('\n'),
+      material.author,
+      material.content || material.summary || null
+    );
   const fields = materialToFields(material, ai, null);
   const relevance = assessResourceRelevance(fields);
   if (!forceKeep && !relevance.keep) {
@@ -403,12 +482,20 @@ async function persistMcpMaterial(material, { dryRun = false, forceKeep = false 
   fields['归档理由'] = [fields['归档理由'], `MCP价值分=${relevance.score}：${relevance.reason}`].filter(Boolean).join('\n');
 
   if (dryRun) {
-    return { action: 'created', title: material.title, sample: `预览入库：${material.title}` };
+    return {
+      action: 'created',
+      title: material.title,
+      sample: `预览入库：${material.title}${material.url ? `（链接：${material.url.slice(0, 60)}）` : '（无链接）'}`,
+    };
   }
 
-  const result = await insertIfNotExist(fields);
-  await indexRecord(result.record_id || result.recordId, fields);
-  return { action: result.action, title: material.title, sample: `${result.action}: ${material.title}` };
+  const { result, fields: persistedFields, degraded } = await insertMcpFields(fields, material);
+  await indexRecord(result.record_id || result.recordId, persistedFields);
+  return {
+    action: result.action,
+    title: material.title,
+    sample: `${result.action}: ${material.title}${degraded ? '（URL字段已跳过）' : ''}`,
+  };
 }
 
 async function syncManualChapterChain(client, tools, options = {}) {
@@ -543,8 +630,9 @@ async function syncOneMcpTool(client, tools, options = {}) {
   }
 
   const args = options.toolArgs || buildToolArgs(tool, { ...options, limit });
-  log('info', `调用生财 MCP 工具: ${tool.name} args=${JSON.stringify(args).slice(0, 200)}`);
-  const result = await client.callTool(tool.name, args);
+  const cleanedArgs = cleanArgsForSchema(args, tool);
+  log('info', `调用生财 MCP 工具: ${tool.name} args=${JSON.stringify(cleanedArgs).slice(0, 200)}`);
+  const result = await client.callTool(tool.name, cleanedArgs);
   const textPayload = flattenContentBlocks(result);
   const parsed = tryParseJson(textPayload);
   const rawItems = asArray(parsed);

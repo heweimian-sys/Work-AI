@@ -10,7 +10,10 @@
     "doctor": "node scripts/doctor.js",
     "export:knowledge": "node scripts/export-knowledge.js",
     "verify:mcp-manual": "node scripts/verify-mcp-manual.js",
-    "bot": "node bot/index.js"
+    "bot": "node bot/index.js",
+    "bot:watch": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/watch-bot-startup.ps1",
+    "bot:monitor": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/monitor-bot-startup.ps1",
+    "bot:install-startup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-user-startup.ps1"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.39.1",

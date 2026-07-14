@@ -19,6 +19,7 @@ let FIELD_LIST = [];
 const FIELD_ALIASES = {
   '文件名': ['文件名', '文件名称', '名称', '文件', 'FileName', 'Name', 'file_name', 'title'],
   '文件链接': ['文件链接', '链接', 'URL', 'Link', 'file_link', 'url'],
+  '附件链接': ['附件链接', '附件URL', '附件地址', '图片链接', '图片URL', 'AttachmentLinks', 'attachment_links'],
   '分享人': ['分享人', '作者', '主讲人', '上传者', 'Speaker', 'Author', 'speaker', '分享者', '分享嘉宾'],
   '活动名称': ['活动名称', '活动', '标题', '名称', 'Title', 'Session', 'name', '活动标题', '分享主题'],
   '主题标签': ['主题标签', '标签', '关键词', 'Tags', 'Keywords', 'tag', 'tags', '关键字'],
@@ -105,11 +106,19 @@ export async function syncFieldMapping() {
  */
 function mapFields(fields) {
   const mapped = {};
+  const hasSyncedFields = FIELD_LIST.length > 0;
   for (const [key, value] of Object.entries(fields)) {
     // 下划线开头字段只给本地逻辑使用，不写入飞书多维表格。
     if (key.startsWith('_')) continue;
+    if (hasSyncedFields && Object.prototype.hasOwnProperty.call(FIELD_MAPPING, key) && !FIELD_MAPPING[key]) continue;
     const actualName = FIELD_MAPPING[key] || key;
-    if (isUrlField(key, actualName) && isEmptyValue(value)) continue;
+    if (hasSyncedFields && !hasActualField(actualName)) continue;
+    if (isUrlField(key, actualName)) {
+      const urlValue = normalizeUrlFieldValue(value, actualName);
+      if (urlValue == null) continue;
+      mapped[actualName] = urlValue;
+      continue;
+    }
     mapped[actualName] = value;
   }
   return mapped;
@@ -158,8 +167,36 @@ function isEmptyValue(value) {
   return false;
 }
 
+function hasActualField(actualName) {
+  return FIELD_LIST.some(field => field.field_name === actualName);
+}
+
+function getFieldMeta(actualName) {
+  return FIELD_LIST.find(field => field.field_name === actualName) || null;
+}
+
 function isUrlField(standardName, actualName) {
   return ['文件链接', '原文链接'].includes(standardName) || ['文件链接', '原文链接', '链接', 'URL', 'Link'].includes(actualName);
+}
+
+function isValidUrl(value) {
+  if (typeof value !== 'string' || !/^https?:\/\//i.test(value.trim())) return false;
+  try {
+    new URL(value.trim());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeUrlFieldValue(value, actualName) {
+  if (isEmptyValue(value)) return null;
+  const link = extractLinkValue(value).trim();
+  if (!isValidUrl(link)) return null;
+  const field = getFieldMeta(actualName);
+  const text = typeof value === 'object' && value?.text ? String(value.text).trim() : link;
+  if (!field || Number(field.type) === 15) return { link, text: text || link };
+  return link;
 }
 
 function hasMeaningfulField(fields, standardName) {
@@ -247,13 +284,16 @@ export async function insertIfNotExist(fields) {
   const fileHash = fields['_fileHash'];  // 可选：SHA-256 内容哈希
   const contentFingerprint = fields['内容指纹'] || (fileHash ? `file:${fileHash}` : '');
   const newLink = extractLinkValue(fields['文件链接']);
+  const newAttachmentLinks = fields['附件链接'];
 
   if (contentFingerprint) {
     const sameFingerprint = await findByFingerprint(contentFingerprint);
     if (sameFingerprint) {
       const existingFields = sameFingerprint.fields || {};
-      if (needsEnrichment(existingFields) && incomingHasEnrichment(fields)) {
-        log('info', '更新旧记录(内容指纹命中且补全字段): ' + (fileName || contentFingerprint));
+      const existingLink = extractLinkValue(readField(existingFields, '文件链接'));
+      const existingAttachmentLinks = readField(existingFields, '附件链接');
+      if ((!existingLink && newLink) || (!existingAttachmentLinks && newAttachmentLinks) || (needsEnrichment(existingFields) && incomingHasEnrichment(fields))) {
+        log('info', '更新旧记录(内容指纹命中且补链接/补全字段): ' + (fileName || contentFingerprint));
         await update(sameFingerprint.record_id, fields);
         return { action: 'updated', record_id: sameFingerprint.record_id, recordId: sameFingerprint.record_id };
       }
@@ -267,22 +307,23 @@ export async function insertIfNotExist(fields) {
     if (existing) {
       const existingFields = existing.fields || {};
       const existingLink = extractLinkValue(readField(existingFields, '文件链接'));
-      const oldHasValidFileLink = typeof existingLink === 'string' && existingLink.includes('/file/') && !existingLink.includes('/file/test');
-      const newHasValidFileLink = typeof newLink === 'string' && newLink.includes('/file/') && !newLink.includes('/file/test');
+      const existingAttachmentLinks = readField(existingFields, '附件链接');
+      const oldHasValidLink = isValidUrl(existingLink) && !existingLink.includes('/file/test');
+      const newHasValidLink = isValidUrl(newLink) && !newLink.includes('/file/test');
 
-      // 场景1：同名同大小。如果旧记录是坏链接而新记录有真实文件链接，则修复旧记录；否则才跳过。
+      // 场景1：同名同大小。如果旧记录是坏链接而新记录有真实链接，则修复旧记录；否则才跳过。
       if (fileSize && existingFields['文件大小'] === fileSize) {
-        if ((!oldHasValidFileLink && newHasValidFileLink) || (needsEnrichment(existingFields) && incomingHasEnrichment(fields))) {
+        if ((!oldHasValidLink && newHasValidLink) || (!existingAttachmentLinks && newAttachmentLinks) || (needsEnrichment(existingFields) && incomingHasEnrichment(fields))) {
           log('info', '更新旧记录(修复链接或补全字段): ' + fileName);
           await update(existing.record_id, fields);
           return { action: 'updated', record_id: existing.record_id, recordId: existing.record_id };
         }
-        log('info', '去重跳过(文件名+大小且已有有效链接): ' + fileName);
+        log('info', '去重跳过(文件名+大小且无需更新): ' + fileName);
         return { action: 'skipped', record_id: existing.record_id, recordId: existing.record_id };
       }
 
       // 场景2：同名但旧记录没有文件链接（上次上传失败）→ 更新旧记录
-      if ((!existingLink && newLink) || (needsEnrichment(existingFields) && incomingHasEnrichment(fields))) {
+      if ((!existingLink && newLink) || (!existingAttachmentLinks && newAttachmentLinks) || (needsEnrichment(existingFields) && incomingHasEnrichment(fields))) {
         log('info', '更新旧记录(补文件链接或补全字段): ' + fileName);
         await update(existing.record_id, fields);
         return { action: 'updated', record_id: existing.record_id, recordId: existing.record_id };
