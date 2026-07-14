@@ -18,6 +18,8 @@ import { diagnose } from '../tools/diagnose.js';
 import { acquireLock, releaseLock } from '../lib/lock.js';
 import { buildDocumentText } from '../lib/embedding.js';
 import { getRecentContext } from '../memory/recent_context.js';
+import { assessResourceRelevance } from '../tools/relevance.js';
+import { appendLibraryFooter } from '../tools/reply_footer.js';
 
 // 消息级去重：飞书可能推送两次相同事件
 const processedMessages = new Set();
@@ -264,6 +266,20 @@ export async function handleArchive(event, options = {}) {
     '内容指纹': fingerprint,
     '_fileHash': fileHash,
   };
+
+  const quality = assessResourceRelevance({
+    ...recordFields,
+    _fileContent: fileContent || '',
+    _messageType: msgType,
+  });
+  if (!quality.keep) {
+    log('warn', `跳过入库: ${fileName} reason=${quality.reason}`);
+    releaseLock(fingerprint);
+    if (sendReply !== false) {
+      await sendTextMessage(chatId, `已收到「${fileName}」，但没有识别出可复用资料内容，已跳过入库。\n原因：${quality.reason}`);
+    }
+    return { action: 'skipped', reason: 'low_value', detail: quality.reason, driveFileToken, driveFileUrl, fileName };
+  }
 
   let archiveResult = null;
   try {
@@ -610,7 +626,7 @@ async function sendTextMessage(chatId, text) {
     data: {
       receive_id: chatId,
       msg_type: 'text',
-      content: JSON.stringify({ text }),
+      content: JSON.stringify({ text: appendLibraryFooter(text) }),
     },
   });
 }

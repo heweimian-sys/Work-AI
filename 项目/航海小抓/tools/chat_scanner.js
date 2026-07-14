@@ -17,7 +17,9 @@ import { shouldArchiveHistoricalText } from './relevance.js';
 
 const SCAN_LIMIT = 200;       // 单次最多扫描的消息数
 const PAGE_SIZE = 50;         // 每页拉取条数
-const MIN_TEXT_ARCHIVE_CHARS = 20;
+const MIN_TEXT_ARCHIVE_CHARS = 80;
+const ARCHIVE_TEXT_MESSAGES = process.env.ARCHIVE_CHAT_TEXT_MESSAGES === 'true';
+const ARCHIVE_MERGE_FORWARD = process.env.ARCHIVE_MERGE_FORWARD_MESSAGES === 'true';
 
 /**
  * 扫描群聊历史消息，查找文件/图片/链接
@@ -173,7 +175,7 @@ export async function scanChatHistory(chatId, limit = 100, autoArchive = true, o
           }
         }
 
-        if (shouldArchiveTextMessage(msg, text, links)) {
+        if (ARCHIVE_TEXT_MESSAGES && shouldArchiveTextMessage(msg, text, links)) {
           result.textsFound++;
           const textKey = `text:${msg.message_id}`;
           if (existingFiles.has(textKey)) {
@@ -190,7 +192,7 @@ export async function scanChatHistory(chatId, limit = 100, autoArchive = true, o
           }
         }
 
-        if (msgType === 'merge_forward') {
+        if (ARCHIVE_MERGE_FORWARD && msgType === 'merge_forward') {
           result.textsFound++;
           const forwardKey = `forward:${msg.message_id}`;
           if (existingFiles.has(forwardKey)) {

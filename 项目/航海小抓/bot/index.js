@@ -18,6 +18,7 @@ import { syncFieldMapping } from '../lib/bitable.js';
 import { rememberMessage } from '../memory/recent_context.js';
 import { handleCardAction } from '../tools/card_actions.js';
 import { startMcpAutoSync } from '../tools/mcp_scheduler.js';
+import { appendLibraryFooter } from '../tools/reply_footer.js';
 
 const GROUP_REPLIES_ENABLED = process.env.GROUP_REPLIES_ENABLED === 'true';
 
@@ -240,7 +241,7 @@ async function sendFallbackMessage(chatId) {
       data: {
         receive_id: chatId,
         msg_type: 'text',
-        content: JSON.stringify({ text: '我遇到技术问题，已通知开发者。请稍后重试或@运营同学。' }),
+        content: JSON.stringify({ text: appendLibraryFooter('我遇到技术问题，已通知开发者。请稍后重试或@运营同学。') }),
       },
     });
   } catch { /* last resort */ }

@@ -39,6 +39,9 @@ const STRONG_RESOURCE_TYPES = [
 ];
 
 const WEAK_TYPES = ['群聊记录', '合并转发', '访谈记录', '其他'];
+const IMAGE_FILE_RE = /\.(png|jpe?g|gif|bmp|webp)$/i;
+const MATERIAL_FILE_RE = /\.(pdf|docx?|pptx?|xlsx?|csv|md|txt|zip|rar|7z)$/i;
+const CHAT_SCREENSHOT_RE = /聊天记录|群聊记录|微信聊天|截图|朋友圈|对话|私信|收到|好的|谢谢|辛苦|麻烦看|咨询|报名|审核|付款|退款|转账|进群|小助手|客服/;
 
 function normalize(value) {
   if (Array.isArray(value)) return value.join(' ');
@@ -61,7 +64,18 @@ function extractFieldsText(fields = {}) {
     fields['解决的问题'],
     fields['内容类型'],
     fields['归档理由'],
+    fields['_fileContent'],
   ].map(normalize).filter(Boolean).join('\n');
+}
+
+function extractUrl(value) {
+  if (value && typeof value === 'object') return String(value.link || value.text || '');
+  return String(value || '');
+}
+
+function hasUsableUrl(value) {
+  const url = extractUrl(value).trim();
+  return /^https?:\/\//i.test(url) && !url.includes('/file/test');
 }
 
 export function assessResourceRelevance(input = {}) {
@@ -71,7 +85,13 @@ export function assessResourceRelevance(input = {}) {
   const fingerprint = normalize(fields['内容指纹']);
   const fileName = normalize(fields['文件名']);
   const link = normalize(fields['文件链接']);
+  const attachmentLinks = normalize(fields['附件链接']);
   const confidence = Number(fields['AI置信度'] || fields['置信度'] || 0);
+  const msgType = normalize(fields['_messageType']);
+  const hasFileUrl = hasUsableUrl(fields['文件链接']) || hasUsableUrl(fields['原文链接']);
+  const hasAttachmentUrl = hasUsableUrl(attachmentLinks);
+  const isImageFile = msgType === 'image' || IMAGE_FILE_RE.test(fileName);
+  const isMaterialFile = MATERIAL_FILE_RE.test(fileName);
 
   const hasPositive = boolMatch(RESOURCE_POSITIVE, text);
   const hasStrongResourceHint = boolMatch(STRONG_RESOURCE_HINTS, text);
@@ -82,6 +102,7 @@ export function assessResourceRelevance(input = {}) {
   const isUploadedFile = fingerprint.startsWith('file:') || /富文本图片_|历史文件_|\.png$|\.jpg$|\.jpeg$/i.test(fileName);
   const isDocOrLink = fingerprint.startsWith('doc:') || fingerprint.startsWith('url:') || /\/docx\/|\/wiki\/|\/minutes?\/|\/file\//.test(link);
   const isStrongType = STRONG_RESOURCE_TYPES.includes(contentType);
+  const isChatScreenshot = isImageFile && CHAT_SCREENSHOT_RE.test(text);
 
   let score = 0;
   if (hasPositive) score += 3;
@@ -94,6 +115,25 @@ export function assessResourceRelevance(input = {}) {
   if (isChatOnly && hasHardNoise) score -= 2;
   if (isUploadedFile && hasHardNoise && !isStrongType) score -= 1;
   if (text.length < 80 && !isDocOrLink) score -= 1;
+  if (isImageFile && !hasStrongResourceHint) score -= 2;
+  if (isChatScreenshot) score -= 4;
+  if (isUploadedFile && !hasFileUrl && !hasAttachmentUrl) score -= 3;
+
+  if (isUploadedFile && !hasFileUrl && !hasAttachmentUrl) {
+    return { keep: false, score, reason: '附件没有可打开链接，跳过不可用资料' };
+  }
+
+  if (isImageFile && isChatScreenshot && !hasStrongResourceHint) {
+    return { keep: false, score, reason: '图片像聊天/运营截图，缺少可复用资料内容' };
+  }
+
+  if (isImageFile && !hasStrongResourceHint && !isStrongType && score < 3) {
+    return { keep: false, score, reason: '图片未识别出教程/案例/复盘等资料信号' };
+  }
+
+  if (isUploadedFile && !isImageFile && !isMaterialFile && !hasStrongResourceHint && score < 2) {
+    return { keep: false, score, reason: '文件类型和内容都缺少资料价值信号' };
+  }
 
   if (hasStrongResourceHint && !hasHardNoise) {
     return { keep: true, score, reason: '包含明确资料线索，保守保留' };

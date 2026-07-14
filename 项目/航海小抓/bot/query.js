@@ -16,6 +16,7 @@ import { extractSearchKeywords, expandQueryKeywords } from '../lib/ai.js';
 import { embed, buildQueryText } from '../lib/embedding.js';
 import { assessResourceRelevance } from '../tools/relevance.js';
 import { recordNoResultSearch } from '../memory/search_feedback.js';
+import { appendLibraryFooter, getLibraryLinks } from '../tools/reply_footer.js';
 
 const KEYWORD_WEIGHT = 1.0;
 const SEMANTIC_WEIGHT = 1.2;
@@ -216,10 +217,10 @@ export async function handleQuery(event, userText, options = {}) {
       userId: event?.sender?.sender_id?.open_id || event?.userId || '',
       keywords: allKeywords,
     });
-    const link = `https://bytedance.feishu.cn/base/${process.env.BITABLE_APP_TOKEN}`;
+    const link = getLibraryLinks().find(item => item.label === '多维表格资料库')?.url || '';
     if (!options.skipSend) {
       await sendText(chatId,
-        `没找到「${cleaned}」\n· 发文件到群里 → 自动归档\n· 发飞书链接 → 自动录入\n📎 全部资料：${link}`
+        `没找到「${cleaned}」\n· 发文件到群里 → 自动归档\n· 发飞书链接 → 自动录入${link ? `\n📎 全部资料：${link}` : ''}`
       );
     }
     return records;
@@ -295,7 +296,7 @@ async function sendText(chatId, text) {
       data: {
         receive_id: chatId,
         msg_type: 'text',
-        content: JSON.stringify({ text }),
+        content: JSON.stringify({ text: appendLibraryFooter(text) }),
       },
     });
   } catch (err) {

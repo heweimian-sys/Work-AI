@@ -4,6 +4,7 @@
 
 import 'dotenv/config';
 import { client, fetchAPI, uploadImage } from '../lib/feishu.js';
+import { appendLibraryFooter } from './reply_footer.js';
 
 // 默认机器人 emoji（Twemoji 机器人）
 const DEFAULT_STICKER_URL = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f916.png';
@@ -18,12 +19,13 @@ const stickerCache = new Map(); // url -> image_key
  */
 export async function sendMessage(chatId, text, messageType = 'text', card) {
   try {
+    const finalText = card ? text : appendLibraryFooter(text);
     const data = {
       receive_id: chatId,
       msg_type: card ? 'interactive' : messageType,
       content: card
         ? JSON.stringify(card)
-        : JSON.stringify({ text }),
+        : JSON.stringify({ text: finalText }),
     };
 
     await client.im.message.create({
