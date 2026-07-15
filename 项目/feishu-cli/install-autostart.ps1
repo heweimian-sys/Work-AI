@@ -5,9 +5,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $HermesRoot = [System.IO.Path]::GetFullPath($HermesRoot)
-$HermesExe = Join-Path $HermesRoot "venv\Scripts\hermes.exe"
-if (-not (Test-Path -LiteralPath $HermesExe)) {
-    throw "没有找到 Hermes: $HermesExe"
+$PythonExe = Join-Path $HermesRoot "venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $PythonExe)) {
+    throw "没有找到 Hermes Python: $PythonExe"
 }
 
 $SourceScript = Join-Path $PSScriptRoot "start-gateway-safe.bat"
@@ -26,8 +26,10 @@ $Link.Description = "Start Hermes Feishu Gateway safely at Windows sign-in"
 $Link.Save()
 
 if ($StartNow) {
-    $Status = & $HermesExe gateway status 2>&1 | Out-String
-    if ($Status -notmatch "Gateway is running") {
+    $GatewayProcess = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object {
+        $_.CommandLine -match "hermes_cli\.main gateway run"
+    }
+    if (-not $GatewayProcess) {
         Start-Process -FilePath $TargetScript -WorkingDirectory $HermesRoot -WindowStyle Hidden
     }
 }

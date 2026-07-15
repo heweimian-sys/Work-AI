@@ -29,6 +29,9 @@ class CommandRouterTest(unittest.TestCase):
         self.assertTrue(is_write_command("feedback"))
         self.assertFalse(is_write_command("news"))
 
+    def test_plain_chat_is_not_a_fixed_command(self):
+        self.assertIsNone(command_name("帮我整理这些链接"))
+
     @patch("command_router.append_to_log")
     def test_note_routes_without_llm(self, append):
         result = execute("录入: 完成确定性路由", store=self.store)

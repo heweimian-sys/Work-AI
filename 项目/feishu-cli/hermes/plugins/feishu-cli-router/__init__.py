@@ -44,6 +44,8 @@ def _command_name(text):
 
 
 def _policy(event, command):
+    if command is None:
+        return "ignore"
     source = event.source
     owner = _owner_id()
     is_owner = bool(owner and source.user_id == owner)

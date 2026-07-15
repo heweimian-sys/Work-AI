@@ -89,8 +89,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-autostart.ps1 
 
 ```powershell
 cd $HOME\hermes-agent
-.\venv\Scripts\hermes.exe gateway run
+.\venv\Scripts\python.exe -m hermes_cli.main gateway run
 ```
+
+使用虚拟环境 Python 启动可避免部分 Windows 应用控制策略拦截 `hermes.exe` 包装器。
 
 ### 4. 验证
 
