@@ -13,6 +13,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 PUBLIC_GROUP_COMMANDS = {"news", "profile", "intro"}
 WRITE_COMMANDS = {"note", "feedback"}
+RESEARCH_HINTS = ("搜索", "找找", "调研", "查找", "去推特", "github", "GitHub")
 
 
 def _cli_dir():
@@ -103,6 +104,12 @@ def pre_gateway_dispatch(event, gateway, **_kwargs):
     if getattr(event.source.platform, "value", "") != "feishu":
         return None
     command = _command_name(event.text)
+    if command is None and source_is_owner(event.source) and any(
+        hint in (event.text or "") for hint in RESEARCH_HINTS
+    ):
+        asyncio.get_running_loop().create_task(
+            _send(gateway, event.source, "收到，正在检索并筛选。预计 1-3 分钟；若耗时更久，我会继续报告进度。")
+        )
     policy = _policy(event, command)
     if policy == "ignore":
         return None
@@ -115,6 +122,11 @@ def pre_gateway_dispatch(event, gateway, **_kwargs):
         _execute_and_reply(gateway, event.source, event.text)
     )
     return {"action": "skip", "reason": f"deterministic-command:{command}"}
+
+
+def source_is_owner(source):
+    owner = _owner_id()
+    return bool(owner and source.user_id == owner)
 
 
 def register(ctx):

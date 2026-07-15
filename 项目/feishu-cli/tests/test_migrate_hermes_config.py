@@ -35,6 +35,8 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(env["FEISHU_OWNER_OPEN_ID"], "owner")
             config = yaml.safe_load((canonical / "config.yaml").read_text(encoding="utf-8"))
             self.assertFalse(config["agent"]["skip_context_files"])
+            self.assertEqual(config["agent"]["max_turns"], 15)
+            self.assertEqual(config["agent"]["gateway_timeout"], 420)
             self.assertTrue(config["memory"]["memory_enabled"])
             self.assertFalse(config["memory"]["user_profile_enabled"])
             self.assertEqual((canonical / "SOUL.md").read_text(encoding="utf-8"), "SOUL.md")

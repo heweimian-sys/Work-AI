@@ -50,7 +50,12 @@ def merge_env(canonical, legacy_paths):
 def update_yaml(path):
     data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
     data = data or {}
-    data.setdefault("agent", {})["skip_context_files"] = False
+    agent = data.setdefault("agent", {})
+    agent["skip_context_files"] = False
+    agent["max_turns"] = 15
+    agent["gateway_timeout"] = 420
+    agent["gateway_timeout_warning"] = 90
+    agent["gateway_notify_interval"] = 120
     memory = data.setdefault("memory", {})
     memory["memory_enabled"] = True
     memory["user_profile_enabled"] = False
