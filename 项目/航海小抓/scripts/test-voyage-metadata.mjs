@@ -4,6 +4,7 @@ import {
   inferVoyageMetadata,
   isQueryableVoyageRecord,
 } from '../lib/voyage-metadata.js';
+import { normalizeFeishuText } from '../tools/send-message.js';
 
 const complete = inferVoyageMetadata({
   fileName: '7月小红书航海中期复盘PPT.pptx',
@@ -43,5 +44,9 @@ assert.equal(isQueryableVoyageRecord({
   '文件链接': 'https://example.feishu.cn/file/abc',
 }), false);
 
-console.log('voyage metadata tests: 8 passed');
+assert.equal(
+  normalizeFeishuText('## 能力\n- **归档资料**：`PPT`'),
+  '能力\n• 归档资料：PPT',
+);
 
+console.log('voyage metadata tests: 9 passed');

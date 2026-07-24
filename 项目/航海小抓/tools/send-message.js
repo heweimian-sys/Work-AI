@@ -10,6 +10,19 @@ import { appendLibraryFooter } from './reply_footer.js';
 const DEFAULT_STICKER_URL = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f916.png';
 const stickerCache = new Map(); // url -> image_key
 
+export function normalizeFeishuText(value = '') {
+  return String(value || '')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1\n$2')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '• ')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /**
  * 发送文本消息或卡片消息
  * @param {string} chatId
@@ -19,7 +32,7 @@ const stickerCache = new Map(); // url -> image_key
  */
 export async function sendMessage(chatId, text, messageType = 'text', card) {
   try {
-    const finalText = card ? text : appendLibraryFooter(text);
+    const finalText = card ? text : normalizeFeishuText(appendLibraryFooter(text));
     const data = {
       receive_id: chatId,
       msg_type: card ? 'interactive' : messageType,
