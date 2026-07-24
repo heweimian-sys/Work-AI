@@ -190,6 +190,13 @@ const eventDispatcher = new lark.EventDispatcher({
     const parsedEvent = parseEvent(event);
 
     log('info', `收到消息 type=${msgType} chat=${chatId}`);
+
+    // 群聊必须命中显式白名单。检查发生在记忆、表情、归档和 Agent 调用之前。
+    if (!isP2P && !isMonitoredChat(chatId)) {
+      log('info', `忽略非白名单群消息: chat=${chatId}`);
+      return;
+    }
+
     rememberMessage(event);
 
     // 群里非 @ 的普通文字只作为归档上下文记忆，不触发回复。

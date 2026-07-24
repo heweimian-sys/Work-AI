@@ -18,10 +18,10 @@ const MONITORED_CHAT_IDS = new Set(MONITORED_CHAT_ID_LIST);
  * @returns {boolean}
  */
 export function isMonitoredChat(chatId) {
-  // 未配置时默认监听所有群（便于本地测试）
+  // 生产安全默认值：未配置白名单时拒绝所有群聊，私聊由消息入口单独放行。
   if (MONITORED_CHAT_IDS.size === 0) {
-    log('info', `isMonitoredChat(${chatId}) → true (默认监听所有群)`);
-    return true;
+    log('warn', `isMonitoredChat(${chatId}) → false (MONITORED_CHAT_IDS 未配置)`);
+    return false;
   }
   const result = MONITORED_CHAT_IDS.has(chatId);
   log('info', `isMonitoredChat(${chatId}) → ${result}`);
