@@ -1,9 +1,15 @@
-"""飞书 CLI 配置。敏感信息只从环境变量或 ~/.hermes/.env 读取。"""
+"""飞书 CLI 配置。敏感信息只从环境变量或 Hermes 配置目录读取。"""
 import os
 
+
 def _load():
-    env_file = os.path.expanduser("~/.hermes/.env")
-    if os.path.exists(env_file):
+    paths = []
+    if os.environ.get("LOCALAPPDATA"):
+        paths.append(os.path.join(os.environ["LOCALAPPDATA"], "hermes", ".env"))
+    paths.append(os.path.expanduser("~/.hermes/.env"))
+    for env_file in paths:
+        if not os.path.exists(env_file):
+            continue
         with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -11,6 +17,7 @@ def _load():
                     k, v = line.split("=", 1)
                     if k not in os.environ:
                         os.environ[k] = v.strip()
+
 
 _load()
 

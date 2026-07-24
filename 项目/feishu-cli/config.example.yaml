@@ -4,6 +4,7 @@ documents:
   notes: ""
   report: ""
   report_ref: ""
+  department_report: ""
 
 ddl_watch:
   - keyword: "示例任务"

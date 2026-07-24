@@ -15,6 +15,22 @@
 | 🧠 技能训练 | `训练周报` | 三步思维训练法 |
 | 🔧 任务拆解 | `拆解: xxx` | 引导式任务分解 |
 
+## 周报 Agent 工作流
+
+周报能力由 Hermes Profile、`feishu-cli` Skill 和确定性脚本共同完成：
+
+1. `python weekly_report.py collect --type personal` 读取本周日志、日历和参考周报。
+2. Hermes 先输出候选池，逐风确认内容取舍后再生成个人周报草稿。
+3. `python weekly_report.py validate --type personal --file <草稿>` 校验栏目和占位内容。
+4. 只有逐风明确确认当前完整版本后，才允许运行带 `--confirm` 的发布命令。
+5. 部门周报使用 `--type department`，并以已确认的个人周报为主要输入。
+
+个人周报固定栏目：核心工作、项目进展、思考沉淀、下周计划。
+
+部门周报固定栏目：核心工作、常规性事务工作、个人思考、下周工作计划。
+
+第一版不会自动覆盖正式文档，也不会在缺少确认时写入飞书。
+
 ## 快速开始（换电脑时看这里）
 
 ### 1. 前置条件
@@ -33,7 +49,7 @@ pip install -r requirements.txt
 
 ### 2. 配置
 
-复制 `.env.example` 的字段到 `~/.hermes/.env`，再填入自己的值：
+复制 `.env.example` 的字段到 `%LOCALAPPDATA%\hermes\.env`，再填入自己的值：
 
 ```env
 FEISHU_APP_ID=cli_xxx        # 飞书应用 ID
@@ -54,7 +70,8 @@ FEISHU_CLI_DATA_DIR=~/.hermes/data/feishu-cli
 FEISHU_NOTES_DOC=xxx         # 使用 Agent 日志功能时需要
 ```
 
-复制业务配置模板并填写自己的文档 token 和 DDL：
+复制业务配置模板并填写自己的文档 token 和 DDL。`documents.department_report`
+用于部门周报写入；未配置时仍可生成和校验草稿，但不能发布：
 
 ```bash
 cp config.example.yaml config.yaml
@@ -116,7 +133,8 @@ feishu-cli/
 ├── daily_report.py     # 日报系统
 ├── skill_trainer.py    # 技能训练师
 ├── weekly_data.py      # 周报数据采集
-└── config.py           # 安全配置（从 ~/.hermes/.env 读取）
+├── weekly_report.py    # 周报校验与确认发布
+└── config.py           # 安全配置（从 Hermes 配置目录读取）
 ```
 
 ## 架构说明

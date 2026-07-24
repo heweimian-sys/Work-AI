@@ -16,6 +16,7 @@ $Files = @(
     "feishu_cli.py",
     "daily_report.py",
     "weekly_data.py",
+    "weekly_report.py",
     "skill_trainer.py",
     "requirements.txt"
 )

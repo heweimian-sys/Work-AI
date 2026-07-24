@@ -21,17 +21,24 @@ logger = logging.getLogger(__name__)
 
 # ── 从配置文件读取 ──
 def _load_doc_tokens():
-    """从 config.yaml 读取文档 Token。"""
+    """从 config.yaml 读取周报所需文档 Token。"""
     config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     if not os.path.exists(config_path):
         logger.warning("config.yaml 未找到")
-        return "", ""
+        return {"log": "", "report": "", "report_ref": "", "department_report": ""}
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
     docs = config.get("documents", {})
-    return docs.get("log", ""), docs.get("report_ref", "")
+    return {
+        "log": docs.get("log", ""),
+        "report": docs.get("report", ""),
+        "report_ref": docs.get("report_ref", ""),
+        "department_report": docs.get("department_report", ""),
+    }
 
-LOG_DOC_TOKEN, REPORT_DOC_TOKEN = _load_doc_tokens()
+DOC_TOKENS = _load_doc_tokens()
+LOG_DOC_TOKEN = DOC_TOKENS["log"]
+REPORT_DOC_TOKEN = DOC_TOKENS["report_ref"]
 
 def get_week_range(offset=0):
     """返回本周(或偏移周)的起止日期，中国时区。"""
@@ -47,14 +54,9 @@ def extract_week_entries(text, monday, sunday):
     sunday_str = sunday.strftime("%Y-%m-%d")
     return [e for e in entries if monday_str <= e["date"] <= sunday_str]
 
-def main():
-    offset = 0
-    for i, arg in enumerate(sys.argv):
-        if arg == "--week-offset" and i+1 < len(sys.argv):
-            offset = int(sys.argv[i+1])
-    
+def collect_week_data(offset=0):
+    """采集指定周的日志、日历和参考周报，返回可序列化数据。"""
     monday, sunday = get_week_range(offset)
-    
     result = {
         "week": {
             "start": monday.strftime("%Y-%m-%d"),
@@ -87,7 +89,17 @@ def main():
         result["last_report_preview"] = report[:500]
     except:
         pass
-    
+
+    return result
+
+
+def main():
+    offset = 0
+    for i, arg in enumerate(sys.argv):
+        if arg == "--week-offset" and i+1 < len(sys.argv):
+            offset = int(sys.argv[i+1])
+
+    result = collect_week_data(offset)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":

@@ -1,14 +1,23 @@
-"""
-飞书 API 封装
-凭据从 ~/.hermes/.env 自动加载
-"""
+"""飞书 API 封装，凭据从 Hermes 规范配置目录自动加载。"""
 import os, json, time
 import requests
 
+
+def _env_paths():
+    """返回 Hermes 配置候选路径，新目录优先、旧目录仅兼容迁移。"""
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    paths = []
+    if local_app_data:
+        paths.append(os.path.join(local_app_data, "hermes", ".env"))
+    paths.append(os.path.expanduser("~/.hermes/.env"))
+    return paths
+
+
 def _load_env():
-    """从 ~/.hermes/.env 加载环境变量"""
-    env_file = os.path.expanduser("~/.hermes/.env")
-    if os.path.exists(env_file):
+    """从 Hermes 配置目录加载环境变量，不覆盖进程已有配置。"""
+    for env_file in _env_paths():
+        if not os.path.exists(env_file):
+            continue
         with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -32,7 +41,7 @@ def validate_credentials():
     if not APP_ID or not APP_SECRET:
         raise RuntimeError(
             "请设置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量，"
-            "或在 ~/.hermes/.env 中配置"
+            "或在 %LOCALAPPDATA%/hermes/.env 中配置"
         )
 
 def _get_token():
@@ -123,9 +132,57 @@ def write_doc(doc_token: str, lines: list):
 def append_to_doc(doc_token: str, lines: list):
     api = f"/docx/v1/documents/{doc_token}/blocks/{doc_token}/children"
     blocks = [_make_text_block(t, b) for t, b in lines]
-    data = _post(api, body={"children": blocks, "index": -1})
+    for i in range(0, len(blocks), 30):
+        data = _post(api, body={"children": blocks[i:i+30], "index": -1})
+        if data.get("code") != 0:
+            raise Exception(f"追加失败: {data.get('msg')}")
+
+# ═══ 日历操作 ═══
+
+def get_primary_calendar():
+    """获取当前用户主日历 ID。"""
+    data = _post("/calendar/v4/calendars/primary")
     if data.get("code") != 0:
-        raise Exception(f"追加失败: {data.get('msg')}")
+        raise Exception(f"获取主日历失败: {data.get('msg')}")
+    calendars = data.get("data", {}).get("calendars", [])
+    if not calendars:
+        raise Exception("获取主日历失败: 返回结果为空")
+    return calendars[0]["calendar"]["calendar_id"]
+
+
+def list_events(start_time=None, end_time=None, page_size=50):
+    """读取指定时间范围的日历事件。"""
+    calendar_id = get_primary_calendar()
+    events = []
+    page_token = None
+    for _ in range(20):
+        params = {"page_size": page_size}
+        if start_time:
+            params["start_time"] = start_time
+        if end_time:
+            params["end_time"] = end_time
+        if page_token:
+            params["page_token"] = page_token
+
+        data = _get(f"/calendar/v4/calendars/{calendar_id}/events", params=params)
+        if data.get("code") != 0:
+            raise Exception(f"读取日历事件失败: {data.get('msg')}")
+        payload = data.get("data", {})
+        for item in payload.get("items", []):
+            events.append({
+                "event_id": item.get("event_id", ""),
+                "summary": item.get("summary", ""),
+                "description": item.get("description", ""),
+                "start": item.get("start_time", {}).get("date_time", ""),
+                "end": item.get("end_time", {}).get("date_time", ""),
+                "organizer": item.get("organizer", {}).get("display_name", ""),
+            })
+        if not payload.get("has_more"):
+            break
+        page_token = payload.get("page_token")
+        if not page_token:
+            break
+    return events
 
 # ═══ 消息 ═══
 
