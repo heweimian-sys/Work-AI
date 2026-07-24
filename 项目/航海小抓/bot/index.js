@@ -113,10 +113,13 @@ function parseEvent(event) {
 
   const mentions = msg.mentions ?? [];
   const botName = process.env.BOT_NAME || '航海资料小抓';
-  const isAtBot = isP2P || mentions.some(m => {
+  const hasNamedBotMention = mentions.some(m => {
     if (!m.name) return false;
     return m.name === botName || m.name.includes(botName) || botName.includes(m.name);
   });
+  // 飞书部分客户端只返回 mention key/open_id，不稳定提供机器人显示名。
+  // 群消息仍会在事件入口经过 MONITORED_CHAT_IDS 白名单，因此白名单群中的显式 @ 可安全视为唤起。
+  const isAtBot = isP2P || hasNamedBotMention || mentions.length > 0;
 
   let contentObj = {};
   let userText = '';
