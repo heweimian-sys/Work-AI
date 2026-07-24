@@ -31,7 +31,7 @@ export function appendLibraryFooter(text = '') {
   return [
     base,
     '',
-    '📎 资料库入口：',
+    '📚 资料库入口：',
     ...links.map(link => `${link.label}：${link.url}`),
   ].filter(Boolean).join('\n');
 }
