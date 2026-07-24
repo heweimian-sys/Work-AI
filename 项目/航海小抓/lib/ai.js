@@ -70,6 +70,9 @@ export async function extractFields(fileName, contextMessage = '', senderName = 
 
     const result = {
       '活动名称': parsed.活动名称 || null,
+      '航海月份': parsed.航海月份 || null,
+      '航海阶段': parsed.航海阶段 || null,
+      '资料类型': parsed.资料类型 || null,
       '分享人': parsed.分享人 || null,
       '主题标签': Array.isArray(parsed.主题标签) ? parsed.主题标签 : [],
       '航海期次': parsed.航海期次 || null,
@@ -134,6 +137,9 @@ function buildPrompt(fileName, contextMessage, senderName, contentPreview) {
 
 {
   "活动名称": "活动完整名称。如'AI工具航海'、'小红书运营航海'。不确定则从文件名和上下文推断",
+  "航海月份": "如'7月'。没有明确月份时留空，不要猜测",
+  "航海阶段": "开营 | 航行 | 中期 | 结营 | 高手领航。没有明确证据时留空",
+  "资料类型": "PPT | 飞书文档 | 回放 | 作业模板 | SOP | 海报 | 其他",
   "分享人": "文档作者或分享人真实姓名。**绝对不能填飞书用户ID(ou_开头)**",
   "主题标签": ["提取3-6个具体关键词", "如：小红书选品", "虚拟电商", "定位"],
   "航海期次": "如'第8次航海'。优先从上下文提取",

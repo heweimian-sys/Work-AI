@@ -24,6 +24,9 @@ const FIELD_ALIASES = {
   '活动名称': ['活动名称', '活动', '标题', '名称', 'Title', 'Session', 'name', '活动标题', '分享主题'],
   '主题标签': ['主题标签', '标签', '关键词', 'Tags', 'Keywords', 'tag', 'tags', '关键字'],
   '航海期次': ['航海期次', '期次', '期数', '航海', 'Period', 'Session', 'period', '航海期'],
+  '航海月份': ['航海月份', '月份', 'Month', 'voyage_month'],
+  '航海项目': ['航海项目', '项目', 'Project', 'voyage_project'],
+  '航海阶段': ['航海阶段', '阶段', 'Stage', 'voyage_stage'],
   'AI置信度': ['AI置信度', '置信度', '可信度', '评分', 'Score', 'Confidence', 'confidence', 'ai_score'],
   // ====== 新增字段 ======
   '一句话摘要': ['一句话摘要', '摘要', '简介', 'Summary', 'summary', '一句话总结'],
@@ -45,6 +48,10 @@ const FIELD_ALIASES = {
   '文件大小': ['文件大小', '大小', '文件尺寸', 'FileSize', 'file_size', 'Size'],
   '归档理由': ['归档理由', '归档说明', '备注', 'ArchiveReason', 'archive_reason', '处理说明'],
   '内容指纹': ['内容指纹', '指纹', '哈希', 'Hash', 'hash', 'Fingerprint', 'fingerprint', 'content_hash'],
+  '归档状态': ['归档状态', 'ArchiveStatus', 'archive_status'],
+  '备份状态': ['备份状态', 'BackupStatus', 'backup_status'],
+  '有效状态': ['有效状态', 'Validity', 'validity'],
+  '当前版本': ['当前版本', '是否当前版本', 'CurrentVersion', 'current_version'],
 };
 
 const IMPORTANT_FIELDS = [

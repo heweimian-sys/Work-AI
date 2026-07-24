@@ -20,9 +20,59 @@ import { buildDocumentText } from '../lib/embedding.js';
 import { getRecentContext } from '../memory/recent_context.js';
 import { assessResourceRelevance, classifyLibraryMaterial } from '../tools/relevance.js';
 import { appendLibraryFooter } from '../tools/reply_footer.js';
+import { buildArchiveLifecycle, inferVoyageMetadata } from '../lib/voyage-metadata.js';
+import { sendMessage } from '../tools/send-message.js';
 
 // 消息级去重：飞书可能推送两次相同事件
 const processedMessages = new Set();
+
+function buildClassificationCard(title, metadata, recordId) {
+  const tableUrl = process.env.BITABLE_APP_TOKEN
+    ? `https://bytedance.feishu.cn/base/${process.env.BITABLE_APP_TOKEN}`
+    : '';
+  const missingText = metadata.missing.length ? metadata.missing.join('、') : '分类置信度较低';
+  const actions = [];
+  if (metadata.missing.length === 0) {
+    actions.push({
+      tag: 'button',
+      text: { tag: 'plain_text', content: '确认分类' },
+      type: 'primary',
+      value: { action: 'archive_confirm', recordId },
+    });
+  }
+  if (tableUrl) {
+    actions.push({
+      tag: 'button',
+      text: { tag: 'plain_text', content: '去表格修改' },
+      type: 'default',
+      url: tableUrl,
+    });
+  }
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      template: 'yellow',
+      title: { tag: 'plain_text', content: '资料待补分类' },
+    },
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: [
+            `📄 ${title}`,
+            `月份：${metadata.month || '未识别'}`,
+            `项目：${metadata.project || '未识别'}`,
+            `阶段：${metadata.stage || '未识别'}`,
+            `类型：${metadata.materialType || '未识别'}`,
+            `待补：${missingText}`,
+          ].join('\n'),
+        },
+      },
+      ...(actions.length ? [{ tag: 'action', actions }] : []),
+    ],
+  };
+}
 
 /**
  * 处理文件归档
@@ -238,6 +288,15 @@ export async function handleArchive(event, options = {}) {
   // 3b. 用文件名 + 文件内容（如有）一起打标
   const aiFields = await extractFields(fileName, contextText, senderName, fileContent);
   log('info', 'AI 提取结果:', aiFields);
+  const voyageMetadata = inferVoyageMetadata({
+    fileName,
+    contextText,
+    activityName: aiFields.活动名称,
+    period: aiFields.航海月份 || aiFields.航海期次,
+    materialType: aiFields.资料类型,
+    contentType: aiFields.内容类型,
+    confidence: aiFields.置信度,
+  });
 
   // === Step 4: 写入多维表格（22列完整索引） ===
   const recordFields = {
@@ -266,6 +325,7 @@ export async function handleArchive(event, options = {}) {
     '抽取正文': fileContent || '',
     '内容指纹': fingerprint,
     '_fileHash': fileHash,
+    ...buildArchiveLifecycle(voyageMetadata, { backedUp: !!driveFileUrl }),
   };
 
   const quality = assessResourceRelevance({
@@ -283,7 +343,7 @@ export async function handleArchive(event, options = {}) {
   }
   const libraryClass = classifyLibraryMaterial(recordFields);
   recordFields['可用状态'] = libraryClass.status;
-  recordFields['资料类型'] = libraryClass.materialType;
+  recordFields['资料类型'] = recordFields['资料类型'] || libraryClass.materialType;
   recordFields['来源可信度'] = libraryClass.sourceConfidence;
   recordFields['处理建议'] = libraryClass.suggestion;
 
@@ -323,12 +383,16 @@ export async function handleArchive(event, options = {}) {
       // 有具体文件链接时附上
       summary += ' ' + driveFileUrl;
     }
-    // 置信度低提示
-    if (aiFields.置信度 < 0.6) {
-      summary += ' ⚠️标签需核查';
+    if (voyageMetadata.needsClassification) {
+      summary += ` ⚠️待补分类：${voyageMetadata.missing.join('、') || '分类置信度较低'}`;
     }
 
-    await sendTextMessage(chatId, summary);
+    if (voyageMetadata.needsClassification && archiveResult?.recordId) {
+      await sendMessage(chatId, summary, 'interactive',
+        buildClassificationCard(fileName, voyageMetadata, archiveResult.recordId));
+    } else {
+      await sendTextMessage(chatId, summary);
+    }
   }
 
   return archiveResult;
@@ -515,6 +579,15 @@ export async function handleLinkArchive(event, linkUrl, options = {}) {
     aiFields = buildFallbackFieldsFromContent(docTitle, senderName, docContent);
   }
   log('info', 'AI 提取结果:', aiFields);
+  const voyageMetadata = inferVoyageMetadata({
+    fileName: docTitle,
+    contextText,
+    activityName: aiFields.活动名称,
+    period: aiFields.航海月份 || aiFields.航海期次,
+    materialType: aiFields.资料类型 || '飞书文档',
+    contentType: aiFields.内容类型,
+    confidence: aiFields.置信度,
+  });
 
   // 写入多维表格（22列完整知识库索引）
   const recordFields = {
@@ -539,11 +612,12 @@ export async function handleLinkArchive(event, linkUrl, options = {}) {
     '内容指纹': linkFingerprint || `url:${linkUrl}`,
     '抽取正文': docContent || '',
     '归档理由': aiFields.归档理由 || (fetchNote ? '需人工核查' : 'AI自动归档'),
+    ...buildArchiveLifecycle(voyageMetadata, { backedUp: false }),
   };
   if (fetchNote) recordFields['归档理由'] = fetchNote;
   const libraryClass = classifyLibraryMaterial(recordFields);
   recordFields['可用状态'] = libraryClass.status;
-  recordFields['资料类型'] = libraryClass.materialType;
+  recordFields['资料类型'] = recordFields['资料类型'] || libraryClass.materialType;
   recordFields['来源可信度'] = libraryClass.sourceConfidence;
   recordFields['处理建议'] = libraryClass.suggestion;
 
@@ -571,13 +645,18 @@ export async function handleLinkArchive(event, linkUrl, options = {}) {
 
   // 紧凑确认（仅在非扫描模式下发）
   if (sendReply !== false) {
-    const needsReview = aiFields.置信度 < 0.6;
-    const reviewNote = needsReview ? ' ⚠️置信度低请核查' : '';
+    const reviewNote = voyageMetadata.needsClassification
+      ? ` ⚠️待补分类：${voyageMetadata.missing.join('、') || '分类置信度较低'}`
+      : '';
     const timeoutNote = fetchNote ? ` ⚠️${fetchNote}` : '';
     const tags = aiFields.主题标签?.length ? `·${aiFields.主题标签.join('、')}` : '';
-    await sendTextMessage(chatId,
-      `✅ 已归档：${docTitle} ${aiFields.分享人 ? '·'+aiFields.分享人 : ''}${tags} ${linkUrl}${reviewNote}${timeoutNote}`
-    );
+    const summary = `✅ 已归档：${docTitle} ${aiFields.分享人 ? '·'+aiFields.分享人 : ''}${tags} ${linkUrl}${reviewNote}${timeoutNote}`;
+    if (voyageMetadata.needsClassification && archiveResult?.recordId) {
+      await sendMessage(chatId, summary, 'interactive',
+        buildClassificationCard(docTitle, voyageMetadata, archiveResult.recordId));
+    } else {
+      await sendTextMessage(chatId, summary);
+    }
   }
 
   return archiveResult;

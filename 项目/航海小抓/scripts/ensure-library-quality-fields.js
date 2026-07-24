@@ -10,6 +10,13 @@ const requiredFields = [
   { field_name: '抽取正文', type: 1 },
   { field_name: '来源可信度', type: 1 },
   { field_name: '处理建议', type: 1 },
+  { field_name: '航海月份', type: 1 },
+  { field_name: '航海项目', type: 1 },
+  { field_name: '航海阶段', type: 1 },
+  { field_name: '归档状态', type: 1 },
+  { field_name: '备份状态', type: 1 },
+  { field_name: '有效状态', type: 1 },
+  { field_name: '当前版本', type: 7 },
 ];
 
 async function listFields() {

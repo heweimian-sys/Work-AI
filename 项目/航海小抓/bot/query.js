@@ -17,6 +17,7 @@ import { embed, buildQueryText } from '../lib/embedding.js';
 import { assessResourceRelevance, classifyLibraryMaterial } from '../tools/relevance.js';
 import { recordNoResultSearch } from '../memory/search_feedback.js';
 import { appendLibraryFooter, getLibraryLinks } from '../tools/reply_footer.js';
+import { isQueryableVoyageRecord } from '../lib/voyage-metadata.js';
 
 const KEYWORD_WEIGHT = 1.0;
 const SEMANTIC_WEIGHT = 1.2;
@@ -45,6 +46,7 @@ function isMarkedBad(fields = {}) {
 
 function isSearchReady(fields = {}) {
   if (isMarkedBad(fields)) return false;
+  if (!isQueryableVoyageRecord(fields)) return false;
   if (!assessResourceRelevance(fields).keep) return false;
   const libraryClass = classifyLibraryMaterial(fields);
   if (libraryClass.status !== '可用') return false;

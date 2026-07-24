@@ -6,6 +6,7 @@ import { client, fetchAPI, log } from '../lib/feishu.js';
 import { getQueryPageState } from '../memory/query_pages.js';
 import { recordQueryFeedback } from '../memory/search_feedback.js';
 import { buildQueryCard } from './query.js';
+import { update } from '../lib/bitable.js';
 
 const recentPageClicks = new Map();
 const DEDUP_MS = 600;
@@ -109,9 +110,32 @@ function schedulePatchFallback(messageId, card, meta) {
 
 export async function handleCardAction(event) {
   const { value, messageId, chatId, operatorOpenId } = normalizeCardActionEvent(event);
-  if (!['query_page', 'query_feedback'].includes(value.action)) return false;
+  if (!['query_page', 'query_feedback', 'archive_confirm'].includes(value.action)) return false;
 
   cleanupClicks();
+
+  if (value.action === 'archive_confirm') {
+    const allowedIds = [
+      process.env.OPS_USER_OPEN_ID,
+      process.env.ADMIN_OPEN_IDS,
+    ].filter(Boolean).join(',').split(/[,，;\s]+/).filter(Boolean);
+    if (allowedIds.length === 0) {
+      return buildNoticeCard('尚未配置负责人', '请先配置 OPS_USER_OPEN_ID 或 ADMIN_OPEN_IDS。');
+    }
+    if (!allowedIds.includes(operatorOpenId)) {
+      return buildNoticeCard('无权确认', '只有运营负责人可以确认资料分类。');
+    }
+    if (!value.recordId) return buildNoticeCard('确认失败', '资料记录 ID 缺失，请到多维表格处理。');
+    await update(value.recordId, {
+      '归档状态': '已归档',
+      '有效状态': '有效',
+      '当前版本': true,
+    });
+    const confirmed = buildNoticeCard('分类已确认', '资料已经进入正式资料库，可以被客服查询。');
+    schedulePatchFallback(messageId, confirmed, { queryId: value.recordId, page: 0 });
+    log('ok', `资料分类确认成功: recordId=${value.recordId} operator=${operatorOpenId}`);
+    return confirmed;
+  }
 
   const queryId = value.queryId || '';
   const page = Number(value.page || 0);
