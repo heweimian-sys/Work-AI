@@ -64,6 +64,11 @@ function envCheck() {
   if (missingRequired.length) {
     throw new Error(`缺少必要环境变量：${missingRequired.join(', ')}`);
   }
+  const baseUrl = process.env.OPENAI_BASE_URL || '';
+  const model = process.env.OPENAI_MODEL || '';
+  if (/api\.deepseek\.com/i.test(baseUrl) && !['deepseek-v4-flash', 'deepseek-v4-pro'].includes(model)) {
+    throw new Error(`当前 DeepSeek 接口不支持模型 ${model || '(未配置)'}，请使用 deepseek-v4-flash 或 deepseek-v4-pro`);
+  }
   return { missingOptional };
 }
 
