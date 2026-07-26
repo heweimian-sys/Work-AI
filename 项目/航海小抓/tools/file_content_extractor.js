@@ -9,14 +9,11 @@
 import process from 'process';
 import 'dotenv/config';
 import { log } from '../lib/feishu.js';
-import OpenAI from 'openai';
+import { createModelClient } from '../lib/model_client.js';
 import * as pdfjs from 'pdfjs-dist';
 import sharp from 'sharp';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-});
+const openai = createModelClient();
 
 const MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.4-mini';
 const MAX_IMAGE_BASE64_BYTES = 15 * 1024 * 1024;

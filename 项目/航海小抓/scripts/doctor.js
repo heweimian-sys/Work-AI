@@ -66,6 +66,10 @@ function envCheck() {
   }
   const baseUrl = process.env.OPENAI_BASE_URL || '';
   const model = process.env.OPENAI_MODEL || '';
+  const apiMode = (process.env.MODEL_API_MODE || 'chat_completions').toLowerCase();
+  if (!['chat_completions', 'responses'].includes(apiMode)) {
+    throw new Error(`MODEL_API_MODE 仅支持 chat_completions 或 responses，当前为 ${apiMode}`);
+  }
   if (/api\.deepseek\.com/i.test(baseUrl) && !['deepseek-v4-flash', 'deepseek-v4-pro'].includes(model)) {
     throw new Error(`当前 DeepSeek 接口不支持模型 ${model || '(未配置)'}，请使用 deepseek-v4-flash 或 deepseek-v4-pro`);
   }

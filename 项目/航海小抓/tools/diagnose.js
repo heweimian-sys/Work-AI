@@ -1,10 +1,7 @@
 import 'dotenv/config';
-import OpenAI from 'openai';
+import { createModelClient } from '../lib/model_client.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-});
+const openai = createModelClient();
 
 const MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 

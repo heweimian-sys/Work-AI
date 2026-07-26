@@ -9,7 +9,7 @@
  *   5. 查询后保存上下文，查询结果优先用卡片集中展示
  */
 
-import OpenAI from 'openai';
+import { createModelClient } from '../lib/model_client.js';
 import 'dotenv/config';
 import { log } from '../lib/feishu.js';
 import { getToolSchemas, executeToolCall } from '../tools/index.js';
@@ -27,10 +27,7 @@ import {
 import { sendMessage } from '../tools/send-message.js';
 import { handleArchive, handleLinkArchive } from '../bot/archive.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-});
+const openai = createModelClient();
 
 const MODEL = process.env.OPENAI_MODEL ?? 'deepseek-v4-flash';
 const MAX_ITERATIONS = 3;  // 最多 3 次 LLM 调用

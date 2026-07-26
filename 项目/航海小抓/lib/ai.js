@@ -8,12 +8,9 @@
  *  4. 置信度规则更严谨
  */
 
-import OpenAI from 'openai';
+import { createModelClient } from './model_client.js';
 import 'dotenv/config';
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-});
+const openai = createModelClient();
 
 
 
