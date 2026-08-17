@@ -159,6 +159,20 @@ const evidence: Evidence[] = [
 
 export const repository = {
   getDashboardData(mode: Mode = "demo"): DashboardData {
+    if (mode === "api") {
+      return {
+        mode,
+        date: new Date().toLocaleDateString("zh-CN"),
+        projects: [],
+        goodNews: [],
+        actions: [],
+        reports: [],
+        groups: [],
+        evidence: [],
+        trends: [],
+        topics: [],
+      };
+    }
     return {
       mode,
       date: "8月17日",

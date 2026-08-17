@@ -26,7 +26,7 @@ const nav: { key: PageKey; label: string; path: string }[] = [
 
 export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey }) {
   const [page, setPage] = useState<PageKey>(initialPage);
-  const [mode, setMode] = useState<"demo" | "api">("demo");
+  const [mode, setMode] = useState<"demo" | "api">("api");
   const data = repository.getDashboardData(mode);
 
   return (
