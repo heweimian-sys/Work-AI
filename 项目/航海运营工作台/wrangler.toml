@@ -1,0 +1,9 @@
+name = "voyage-ops-workbench"
+main = "worker/index.ts"
+compatibility_date = "2026-08-18"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voyage-ops-workbench-db"
+database_id = "b3da998b-f9d2-4aa0-b641-1c232a990dea"
