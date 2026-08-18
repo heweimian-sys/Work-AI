@@ -162,15 +162,18 @@ export const repository = {
     if (mode === "api") {
       return {
         mode,
-        date: new Date().toLocaleDateString("zh-CN"),
-        projects: [],
+        date: "8月6日 - 8月15日",
+        projects: [{ project_id: "proj_planet_01", name: "2026 年 8 月航海总览", stage: "首轮资料分析", day: 10, status: "已完成聚合", risk: "中风险", summary: "已完成 87,331 条群聊记录的首轮聚合，候选内容待核验", todayGoodNews: 30, actions: 30, coverage: "51 / 51" }],
         goodNews: [],
         actions: [],
-        reports: [],
-        groups: [],
+        reports: [{ request_id: "VLOG-20260815", project_id: "proj_planet_01", project: "2026 年 8 月航海总览", date: "8月6日 - 8月15日", status: "待确认", goodNews: 30, actions: 30, coverage: "51/51", raw: 87331, deduped: 87331, updatedAt: "刚刚", dataStatus: "聚合完成，内容待核验", mainLine: "已完成群聊覆盖、消息趋势和好事线索初筛" }],
+        groups: [3871, 3549, 3117, 3028, 2872, 2723, 2353, 2225, 2214, 2207].map((messages, index) => ({ group_id: `AGG-${String(index + 1).padStart(2, "0")}`, project_id: "proj_planet_01" as const, project: "2026 年 8 月航海", group: `活跃群组 ${String(index + 1).padStart(2, "0")}`, messages, interactions: 0, questions: 0, leads: 0, status: "高活跃" as const, dataStatus: "已覆盖" as const })),
         evidence: [],
-        trends: [],
-        topics: [],
+        trends: [
+          ["08-06", 9628, 32], ["08-07", 9787, 51], ["08-08", 8177, 51], ["08-09", 7630, 51], ["08-10", 13416, 51],
+          ["08-11", 9071, 51], ["08-12", 7745, 51], ["08-13", 9373, 50], ["08-14", 12435, 51], ["08-15", 69, 20],
+        ].map(([date, messages, activeGroups]) => ({ date: String(date), goodNews: 0, messages: Number(messages), interactions: 0, activeGroups: Number(activeGroups), lowGroups: 0 })),
+        topics: [{ name: "待核验好事线索", count: 30 }, { name: "已覆盖群组", count: 51 }, { name: "分析天数", count: 10 }],
       };
     }
     return {
