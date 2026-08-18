@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$ZipPath,
-  [int]$VerifiedCandidates = 0
+  [int]$VerifiedCandidates = 0,
+  [string]$AnalysisStatus = "internal_summary"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,23 +21,55 @@ try {
   $dates = $rows | ForEach-Object { [datetime]$_.msgTime }
   $start = ($dates | Measure-Object -Minimum).Minimum.ToString("yyyy-MM-dd")
   $end = ($dates | Measure-Object -Maximum).Maximum.ToString("yyyy-MM-dd")
-  $groups = ($rows.group_name | Sort-Object -Unique).Count
+  $groupNames = @($rows.group_name | Sort-Object -Unique)
+  $groups = $groupNames.Count
   # 这里只同步已经由分析流程核验后的候选数；关键词命中量不能直接当成好事。
   $candidates = $VerifiedCandidates
   $updatedAt = [datetimeoffset]::Now.ToString("o")
-  $sourceName = [System.IO.Path]::GetFileName($ZipPath).Replace("'", "''")
+  $sourceName = "approved-voyage-aggregate"
+  $sourceChecksum = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $dailyTrends = @($rows | Group-Object { ([datetime]$_.msgTime).ToString("yyyy-MM-dd") } | Sort-Object Name | ForEach-Object {
+    [ordered]@{ date = $_.Name; messages = $_.Count; active_groups = @($_.Group.group_name | Sort-Object -Unique).Count }
+  })
+  $activeGroups = @($rows | Group-Object group_name | Sort-Object Count -Descending | Select-Object -First 10 | ForEach-Object -Begin { $rank = 0 } -Process {
+    $rank += 1
+    [ordered]@{ group = "活跃群组 " + $rank.ToString("00"); messages = $_.Count }
+  })
+  $projectOverview = [ordered]@{
+    title = "2026 年 8 月航海总览"
+    summary = "已完成匿名聚合分析，好事候选仍需人工核验后才可公开。"
+    coverage = "$groups / $groups"
+  }
+  $aggregateReport = [ordered]@{
+    title = "航海聚合日报"
+    main_line = "已完成消息趋势、群组活跃度和时间范围统计。"
+    data_status = "聚合完成，候选内容待核验"
+  }
+  $dailyJson = ($dailyTrends | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
+  $groupsJson = ($activeGroups | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
+  $overviewJson = ($projectOverview | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
+  $reportJson = ($aggregateReport | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
+  $safeStatus = $AnalysisStatus.Replace("'", "''")
 
   $sql = @"
 INSERT OR REPLACE INTO dashboard_snapshots (
   snapshot_id, source_name, records, groups_count, date_start, date_end,
-  good_news_candidates, public_publishable, updated_at
-) VALUES ('latest', '$sourceName', $($rows.Count), $groups, '$start', '$end', $candidates, 0, '$updatedAt');
+  good_news_candidates, public_publishable, updated_at, source_checksum,
+  analysis_status, daily_trends_json, active_groups_json,
+  project_overview_json, aggregate_report_json
+) VALUES ('latest', '$sourceName', $($rows.Count), $groups, '$start', '$end', $candidates, 0, '$updatedAt',
+  '$sourceChecksum', '$safeStatus', '$dailyJson', '$groupsJson', '$overviewJson', '$reportJson');
 "@
 
   $sqlPath = Join-Path $temporaryRoot "dashboard.sql"
   Set-Content -LiteralPath $sqlPath -Value $sql -Encoding utf8
   Push-Location $projectRoot
   try {
+    $migration = Join-Path $projectRoot "drizzle\0002_dashboard_details.sql"
+    $nativePreference = $PSNativeCommandUseErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    npx wrangler d1 execute voyage-ops-workbench-db --remote --file $migration --config wrangler.toml *> $null
+    $PSNativeCommandUseErrorActionPreference = $nativePreference
     npx wrangler d1 execute voyage-ops-workbench-db --remote --file $sqlPath --config wrangler.toml
     if ($LASTEXITCODE -ne 0) { throw "D1 同步失败" }
   } finally {
@@ -49,6 +82,10 @@ INSERT OR REPLACE INTO dashboard_snapshots (
     date_start = $start
     date_end = $end
     good_news_candidates = $candidates
+    source_checksum = $sourceChecksum
+    analysis_status = $AnalysisStatus
+    daily_trends = $dailyTrends
+    active_groups = $activeGroups
     updated_at = $updatedAt
   } | ConvertTo-Json
 } finally {

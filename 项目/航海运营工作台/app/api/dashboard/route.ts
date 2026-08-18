@@ -9,11 +9,21 @@ type Snapshot = {
   good_news_candidates: number;
   public_publishable: number;
   updated_at: string;
+  source_checksum: string;
+  analysis_status: string;
+  daily_trends_json: string;
+  active_groups_json: string;
+  project_overview_json: string;
+  aggregate_report_json: string;
 };
+
+function parseJson<T>(value: string, fallback: T): T {
+  try { return JSON.parse(value) as T; } catch { return fallback; }
+}
 
 export async function GET() {
   const snapshot = await env.DB.prepare(
-    "SELECT source_name, records, groups_count, date_start, date_end, good_news_candidates, public_publishable, updated_at FROM dashboard_snapshots WHERE snapshot_id = 'latest'"
+    "SELECT source_name, records, groups_count, date_start, date_end, good_news_candidates, public_publishable, updated_at, source_checksum, analysis_status, daily_trends_json, active_groups_json, project_overview_json, aggregate_report_json FROM dashboard_snapshots WHERE snapshot_id = 'latest'"
   ).first<Snapshot>();
 
   if (!snapshot) {
@@ -23,13 +33,18 @@ export async function GET() {
   return Response.json({
     ok: true,
     source: snapshot.source_name,
+    source_checksum: snapshot.source_checksum,
     records: snapshot.records,
     groups: snapshot.groups_count,
     date_range: { start: snapshot.date_start, end: snapshot.date_end },
-    analysis_status: "internal_summary",
+    analysis_status: snapshot.analysis_status,
     good_news_candidates: snapshot.good_news_candidates,
     public_publishable: snapshot.public_publishable,
     updated_at: snapshot.updated_at,
+    daily_trends: parseJson(snapshot.daily_trends_json, []),
+    active_groups: parseJson(snapshot.active_groups_json, []),
+    project_overview: parseJson(snapshot.project_overview_json, {}),
+    aggregate_report: parseJson(snapshot.aggregate_report_json, {}),
     note: "这是聚合分析结果；原始消息、姓名和证据未进入公开接口。",
   });
 }

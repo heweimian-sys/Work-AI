@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Action, DashboardData, GoodNews, Group, Project, repository } from "../lib/data";
+import { Action, DashboardData, DashboardSnapshot, GoodNews, Group, Project, dashboardFromSnapshot } from "../lib/data";
 
 type PageKey = "overview" | "project" | "good-news" | "actions" | "reports" | "groups" | "evidence";
 
@@ -26,8 +26,14 @@ const nav: { key: PageKey; label: string; path: string }[] = [
 
 export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey }) {
   const [page, setPage] = useState<PageKey>(initialPage);
-  const [mode, setMode] = useState<"demo" | "api">("api");
-  const data = repository.getDashboardData(mode);
+  const [data, setData] = useState<DashboardData>(() => dashboardFromSnapshot({ ok: true, records: 0, groups: 0, date_range: null, good_news_candidates: 0, public_publishable: 0, updated_at: null }));
+  const [loadError, setLoadError] = useState(false);
+  useEffect(() => {
+    fetch("/api/dashboard", { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error("dashboard unavailable"); return response.json(); })
+      .then((snapshot: DashboardSnapshot) => { setData(dashboardFromSnapshot(snapshot)); setLoadError(false); })
+      .catch(() => setLoadError(true));
+  }, []);
 
   return (
     <main className="app-shell">
@@ -49,10 +55,10 @@ export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey 
             </a>
           ))}
         </nav>
-        <div className="sidebar-note">Demo / API 双模式 · 好事优先</div>
+        <div className="sidebar-note">匿名聚合 · 内部核验后公开</div>
       </aside>
       <section className="workspace">
-        <Topbar data={data} mode={mode} setMode={setMode} page={page} />
+        <Topbar data={data} page={page} loadError={loadError} />
         {page === "overview" && <Overview data={data} go={setPage} />}
         {page === "project" && <ProjectDashboard data={data} />}
         {page === "good-news" && <GoodNewsPage data={data} />}
@@ -65,7 +71,7 @@ export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey 
   );
 }
 
-function Topbar({ data, mode, setMode, page }: { data: DashboardData; mode: "demo" | "api"; setMode: (mode: "demo" | "api") => void; page: PageKey }) {
+function Topbar({ data, page, loadError }: { data: DashboardData; page: PageKey; loadError: boolean }) {
   const titles: Record<PageKey, [string, string]> = {
     overview: ["运营总览", "今天最值得关注的航海动态"],
     project: ["项目驾驶舱", "项目进展、结果与风险"],
@@ -83,11 +89,7 @@ function Topbar({ data, mode, setMode, page }: { data: DashboardData; mode: "dem
       </div>
       <div className="top-actions">
         <button className="date-button">{data.date}⌄</button>
-        <div className="mode-switch">
-          <button className={mode === "demo" ? "active" : ""} onClick={() => setMode("demo")}>Demo</button>
-          <button className={mode === "api" ? "active" : ""} onClick={() => setMode("api")}>API</button>
-        </div>
-        <span className="demo-badge">{mode === "demo" ? "演示数据" : "接口模式"}</span>
+        <span className="demo-badge">{loadError ? "数据暂时无法加载" : data.snapshot?.updatedAt ? `更新：${data.snapshot.updatedAt}` : "等待正式数据"}</span>
       </div>
     </header>
   );
@@ -98,10 +100,10 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
   return (
     <div className="page-stack">
       <MetricGrid metrics={[
-        ["真实记录", modeValue(data.mode, "87,331", "18"), "gold"],
-        ["覆盖群组", modeValue(data.mode, "51", "6"), "orange"],
-        ["好事候选", modeValue(data.mode, "30", "3"), "blue"],
-        ["已确认公开", modeValue(data.mode, "0", "2"), "red"],
+        ["真实记录", (data.snapshot?.records || 0).toLocaleString(), "gold"],
+        ["覆盖群组", String(data.snapshot?.groups || 0), "orange"],
+        ["好事候选", String(data.snapshot?.candidates || 0), "blue"],
+        ["已确认公开", String(data.snapshot?.published || 0), "red"],
       ]} />
       <div className="overview-grid">
         <Card className="span-2">
@@ -120,24 +122,24 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
               <button className="ghost" onClick={() => go("evidence")}>查看证据</button>
               <button onClick={() => go("actions")}>创建跟进</button>
             </div>
-          </article> : <div className="empty-state"><h3>真实资料已完成首轮聚合</h3><p>已解析 87,331 条记录、覆盖 51 个群组；30 条好事候选正在去重和核验，暂不公开原始内容。</p></div>}
+          </article> : <div className="empty-state"><h3>{data.snapshot?.records ? "真实资料已完成首轮聚合" : "暂无可展示数据"}</h3><p>{data.snapshot?.records ? `已解析 ${(data.snapshot.records).toLocaleString()} 条记录、覆盖 ${data.snapshot.groups} 个群组；${data.snapshot.candidates} 条好事候选正在去重和核验，暂不公开原始内容。` : "完成 ZIP 分析后，匿名聚合结果会显示在这里。"}</p></div>}
           <DataTable headers={["项目", "原始总结（摘要）", "类型", "状态"]} rows={data.goodNews.slice(1).map((g) => [g.project, g.summary, <Tag key={g.good_news_id} tone="mint">{g.type}</Tag>, <Tag key={`${g.good_news_id}-s`} tone={g.status.includes("待") ? "orange" : "green"}>{g.status}</Tag>])} />
           <button className="link-button" onClick={() => go("good-news")}>查看候选列表 ›</button>
         </Card>
         <aside className="side-stack">
           <Card>
-            <h2>近7天好事趋势</h2>
-            <LineChart data={data.trends.map((t) => ({ label: t.date, value: t.goodNews }))} color="#B88934" />
+            <h2>逐日消息趋势</h2>
+            <LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#B88934" />
             <div className="tag-row">
-              <Tag tone="mint">完成作品</Tag><Tag tone="gold">出单成交</Tag><Tag tone="purple">突破卡点</Tag>
+              <Tag tone="mint">仅展示匿名统计</Tag><Tag tone="gold">原文不公开</Tag>
             </div>
           </Card>
           <Card>
             <h2>今天需要处理</h2>
             {[
-              ["6 条待跟进好事", "及时跟进，帮助航海家沉淀价值"],
-              ["3 条待确认日报", "确认日报，支持复盘与迭代"],
-              ["2 个高风险项目", "关注风险，协助项目平稳推进"],
+              [`${data.snapshot?.candidates || 0} 条好事待核验`, "去重、排除误判并关联内部证据"],
+              [`${data.snapshot?.published || 0} 条已公开`, "未经人工确认的内容不对外展示"],
+              [`${data.snapshot?.groups || 0} 个群组已覆盖`, "对外仅保留匿名消息量统计"],
             ].map((item) => <ActionSummary key={item[0]} title={item[0]} text={item[1]} onClick={() => go("actions")} />)}
           </Card>
         </aside>
@@ -152,14 +154,17 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
   );
 }
 
-function modeValue(mode: Mode, apiValue: string, demoValue: string) {
-  return mode === "api" ? apiValue : demoValue;
-}
-
 function ProjectDashboard({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState(data.projects[0].project_id);
   const project = data.projects.find((p) => p.project_id === selected) ?? data.projects[0];
   const projectGoods = data.goodNews.filter((g) => g.project_id === project.project_id);
+  if (data.mode === "api") {
+    return <div className="page-stack">
+      <MetricGrid metrics={[["项目状态", project.status, "green"], ["好事待核验", String(data.snapshot?.candidates || 0), "gold"], ["覆盖群组", String(data.snapshot?.groups || 0), "blue"], ["记录数", (data.snapshot?.records || 0).toLocaleString(), "orange"]]} compact />
+      <div className="two-col"><Card><h2>项目总览</h2><p>{project.summary}</p><InfoList items={[["日期范围", data.date], ["数据覆盖", project.coverage], ["最后更新", data.snapshot?.updatedAt || "-"]]} /></Card><Card><h2>逐日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#237B69" /></Card></div>
+      <Card><h2>待核验内容</h2><div className="empty-state"><p>候选好事仍在去重和证据核验，未确认前不展示人员、群名或原文。</p></div></Card>
+    </div>;
+  }
   return (
     <div className="page-stack">
       <div className="inline-title-control"><select value={selected} onChange={(e) => setSelected(e.target.value as Project["project_id"])}>{data.projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}</select></div>
@@ -191,7 +196,7 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
 function GoodNewsPage({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState<GoodNews>(data.goodNews[0]);
   if (!data.goodNews.length) {
-    return <EmptyPanel title="航海好事正在核验" text="已初筛 30 条候选，正在去重、排除误判并关联证据；核验完成前不展示原始内容。" />;
+    return <EmptyPanel title="航海好事正在核验" text={`已有 ${data.snapshot?.candidates || 0} 条候选待去重、排除误判并关联证据；核验完成前不展示原始内容。`} />;
   }
   return (
     <div className="page-stack">
@@ -240,6 +245,12 @@ function ActionsPage({ data }: { data: DashboardData }) {
 
 function ReportsPage({ data }: { data: DashboardData }) {
   const selected = data.reports[0];
+  if (!selected) return <EmptyPanel title="暂无聚合日报" text="ZIP 解析完成后，匿名聚合日报会显示在这里。" />;
+  if (data.mode === "api") return <div className="page-stack">
+    <MetricGrid metrics={[["原始记录", selected.raw.toLocaleString(), "blue"], ["覆盖群组", String(data.snapshot?.groups || 0), "green"], ["好事待核验", String(selected.goodNews), "gold"], ["已公开", String(data.snapshot?.published || 0), "orange"]]} compact />
+    <div className="two-col"><Card><h2>聚合日报</h2><h3>{selected.project}</h3><p>{selected.mainLine}</p><InfoList items={[["日期范围", selected.date], ["数据状态", selected.dataStatus], ["最后更新", selected.updatedAt]]} /></Card><Card><h2>日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#397AA8" /></Card></div>
+    <Card><div className="empty-state"><h2>内容仍待内部确认</h2><p>公开工作台不提供确认、修改或发布权限。</p></div></Card>
+  </div>;
   return (
     <div className="page-stack">
       <FilterBar labels={["全部项目", "日报状态", "数据状态", "时间范围", "搜索项目或群组"]} action="生成今日日报" />
@@ -256,6 +267,12 @@ function ReportsPage({ data }: { data: DashboardData }) {
 
 function GroupsPage({ data }: { data: DashboardData }) {
   const selected = data.groups[0];
+  if (!selected) return <EmptyPanel title="暂无群组聚合数据" text="群组名会匿名化后显示，不会公开真实群名。" />;
+  if (data.mode === "api") return <div className="page-stack">
+    <MetricGrid metrics={[["覆盖群组", String(data.snapshot?.groups || 0), "blue"], ["最高消息量", selected.messages.toLocaleString(), "green"], ["分析天数", String(data.trends.length), "orange"]]} compact />
+    <div className="groups-main-grid"><Card className="span-2"><h2>消息量与活跃群趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#397AA8" /></Card><Card><h2>匿名活跃群排行</h2><RankList groups={data.groups} /></Card></div>
+    <Card><h2>匿名群组消息量</h2><DataTable headers={["群组", "消息量", "数据状态"]} rows={data.groups.map((g) => [g.group, g.messages, <Tag key={g.group_id} tone="green">已覆盖</Tag>])} /></Card>
+  </div>;
   return (
     <div className="page-stack">
       <FilterBar labels={["全部项目", "全部群组", "活跃等级", "数据状态", "近7天（8/11 - 8/17）"]} />
@@ -425,7 +442,7 @@ function Funnel() {
 }
 
 function ProjectMini({ project }: { project: Project }) {
-  return <article><h3>{project.name}</h3><p>{project.summary}</p><Tag tone={project.risk === "中风险" ? "orange" : "mint"}>{project.risk}</Tag><strong>{project.todayGoodNews} 条</strong><small>今日好事</small></article>;
+  return <article><h3>{project.name}</h3><p>{project.summary}</p><Tag tone={project.risk === "中风险" ? "orange" : "mint"}>{project.risk}</Tag><strong>{project.todayGoodNews} 条</strong><small>好事待核验</small></article>;
 }
 
 function ActionSummary({ title, text, onClick }: { title: string; text: string; onClick: () => void }) {
