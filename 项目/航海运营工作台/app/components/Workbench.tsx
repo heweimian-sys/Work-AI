@@ -190,6 +190,9 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
 
 function GoodNewsPage({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState<GoodNews>(data.goodNews[0]);
+  if (!data.goodNews.length) {
+    return <EmptyPanel title="航海好事正在核验" text="已初筛 30 条候选，正在去重、排除误判并关联证据；核验完成前不展示原始内容。" />;
+  }
   return (
     <div className="page-stack">
       <FilterBar labels={["全部项目", "全部类型", "可信度", "时间范围", "搜索船员或原文"]} action="导出好事" />
@@ -209,6 +212,9 @@ function GoodNewsPage({ data }: { data: DashboardData }) {
 
 function ActionsPage({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState<Action>(data.actions[0]);
+  if (!data.actions.length) {
+    return <EmptyPanel title="行动建议待生成" text="首轮聚合已完成，待好事候选核验后生成可执行的运营行动。" />;
+  }
   return (
     <div className="page-stack">
       <FilterBar labels={["全部项目", "全部负责人", "全部来源", "优先级", "状态", "搜索问题或行动"]} action="新建行动" />
@@ -271,6 +277,9 @@ function GroupsPage({ data }: { data: DashboardData }) {
 }
 
 function EvidencePage({ data }: { data: DashboardData }) {
+  if (!data.evidence.length) {
+    return <EmptyPanel title="证据仅在内部保留" text="原始群聊、成员信息和证据内容未进入公开 Worker；公开页只展示匿名聚合结果。" />;
+  }
   const selected = data.evidence[0];
   const sourceRows = [
     ["微信群聊", "08-17 09:35", "正常", "监控 126 个群组，近 7 天消息已覆盖"],
@@ -335,6 +344,10 @@ function EvidencePage({ data }: { data: DashboardData }) {
       </section>
     </div>
   );
+}
+
+function EmptyPanel({ title, text }: { title: string; text: string }) {
+  return <div className="page-stack"><Card><div className="empty-state"><h2>{title}</h2><p>{text}</p></div></Card></div>;
 }
 
 function MetricGrid({ metrics, compact = false }: { metrics: [string, string, string][]; compact?: boolean }) {
