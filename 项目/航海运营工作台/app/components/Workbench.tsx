@@ -98,15 +98,15 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
   return (
     <div className="page-stack">
       <MetricGrid metrics={[
-        ["今日好事", "18", "gold"],
-        ["待跟进好事", "6", "orange"],
-        ["待确认日报", "3", "blue"],
-        ["高风险项目", "2", "red"],
+        ["真实记录", modeValue(data.mode, "87,331", "18"), "gold"],
+        ["覆盖群组", modeValue(data.mode, "51", "6"), "orange"],
+        ["好事候选", modeValue(data.mode, "30", "3"), "blue"],
+        ["已确认公开", modeValue(data.mode, "0", "2"), "red"],
       ]} />
       <div className="overview-grid">
         <Card className="span-2">
           <h2>今日航海好事</h2>
-          <article className="hero-good">
+          {hero ? <article className="hero-good">
             <div>
               <h3>{hero.summary}</h3>
               <div className="meta-grid">
@@ -120,9 +120,9 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
               <button className="ghost" onClick={() => go("evidence")}>查看证据</button>
               <button onClick={() => go("actions")}>创建跟进</button>
             </div>
-          </article>
+          </article> : <div className="empty-state"><h3>真实资料已完成首轮聚合</h3><p>已解析 87,331 条记录、覆盖 51 个群组；30 条好事候选正在去重和核验，暂不公开原始内容。</p></div>}
           <DataTable headers={["项目", "原始总结（摘要）", "类型", "状态"]} rows={data.goodNews.slice(1).map((g) => [g.project, g.summary, <Tag key={g.good_news_id} tone="mint">{g.type}</Tag>, <Tag key={`${g.good_news_id}-s`} tone={g.status.includes("待") ? "orange" : "green"}>{g.status}</Tag>])} />
-          <button className="link-button" onClick={() => go("good-news")}>查看全部 18 条 ›</button>
+          <button className="link-button" onClick={() => go("good-news")}>查看候选列表 ›</button>
         </Card>
         <aside className="side-stack">
           <Card>
@@ -150,6 +150,10 @@ function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => vo
       </Card>
     </div>
   );
+}
+
+function modeValue(mode: Mode, apiValue: string, demoValue: string) {
+  return mode === "api" ? apiValue : demoValue;
 }
 
 function ProjectDashboard({ data }: { data: DashboardData }) {
