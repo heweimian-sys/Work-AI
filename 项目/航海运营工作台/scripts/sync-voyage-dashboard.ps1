@@ -2,6 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$ZipPath,
   [int]$VerifiedCandidates = 0,
+  [int]$DetectedCandidates = 0,
+  [string]$GoodNewsBreakdownJson = "[]",
   [string]$AnalysisStatus = "internal_summary"
 )
 
@@ -25,6 +27,7 @@ try {
   $groups = $groupNames.Count
   # 这里只同步已经由分析流程核验后的候选数；关键词命中量不能直接当成好事。
   $candidates = $VerifiedCandidates
+  if ($DetectedCandidates -lt $candidates) { $DetectedCandidates = $candidates }
   $updatedAt = [datetimeoffset]::Now.ToString("o")
   $sourceName = "approved-voyage-aggregate"
   $sourceChecksum = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -50,14 +53,17 @@ try {
   $overviewJson = ($projectOverview | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
   $reportJson = ($aggregateReport | ConvertTo-Json -Depth 5 -Compress).Replace("'", "''")
   $safeStatus = $AnalysisStatus.Replace("'", "''")
+  $safeBreakdown = $GoodNewsBreakdownJson.Replace("'", "''")
 
   $sql = @"
 INSERT OR REPLACE INTO dashboard_snapshots (
   snapshot_id, source_name, records, groups_count, date_start, date_end,
-  good_news_candidates, public_publishable, updated_at, source_checksum,
+  good_news_candidates, good_news_detected, good_news_breakdown_json, good_news_reviewed_at,
+  public_publishable, updated_at, source_checksum,
   analysis_status, daily_trends_json, active_groups_json,
   project_overview_json, aggregate_report_json
-) VALUES ('latest', '$sourceName', $($rows.Count), $groups, '$start', '$end', $candidates, 0, '$updatedAt',
+) VALUES ('latest', '$sourceName', $($rows.Count), $groups, '$start', '$end', $candidates, $DetectedCandidates,
+  '$safeBreakdown', '$updatedAt', 0, '$updatedAt',
   '$sourceChecksum', '$safeStatus', '$dailyJson', '$groupsJson', '$overviewJson', '$reportJson');
 "@
 
@@ -66,9 +72,11 @@ INSERT OR REPLACE INTO dashboard_snapshots (
   Push-Location $projectRoot
   try {
     $migration = Join-Path $projectRoot "drizzle\0002_dashboard_details.sql"
+    $goodNewsMigration = Join-Path $projectRoot "drizzle\0004_good_news_review.sql"
     $nativePreference = $PSNativeCommandUseErrorActionPreference
     $PSNativeCommandUseErrorActionPreference = $false
     npx wrangler d1 execute voyage-ops-workbench-db --remote --file $migration --config wrangler.toml *> $null
+    npx wrangler d1 execute voyage-ops-workbench-db --remote --file $goodNewsMigration --config wrangler.toml *> $null
     $PSNativeCommandUseErrorActionPreference = $nativePreference
     npx wrangler d1 execute voyage-ops-workbench-db --remote --file $sqlPath --config wrangler.toml
     if ($LASTEXITCODE -ne 0) { throw "D1 同步失败" }

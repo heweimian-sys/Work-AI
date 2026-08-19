@@ -197,7 +197,20 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
 function GoodNewsPage({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState<GoodNews>(data.goodNews[0]);
   if (!data.goodNews.length) {
-    return <EmptyPanel title="航海好事正在核验" text={`已有 ${data.snapshot?.candidates || 0} 条候选待去重、排除误判并关联证据；核验完成前不展示原始内容。`} />;
+    const detected = data.snapshot?.detected || 0;
+    const candidates = data.snapshot?.candidates || 0;
+    const published = data.snapshot?.published || 0;
+    const breakdown = data.snapshot?.goodNewsBreakdown || [];
+    return (
+      <div className="page-stack">
+        <MetricGrid metrics={[["机器识别线索", String(detected), "gold"], ["进入人工核验", String(candidates), "orange"], ["已确认", "0", "blue"], ["可对外展示", String(published), "green"]]} compact />
+        <div className="two-col">
+          <Card><h2>核验进度</h2><BarList items={[{ name: "机器识别", count: detected }, { name: "人工核验队列", count: candidates }, { name: "确认可用", count: published }]} /><p className="insight">候选仍需逐条排除提问、计划和转述，不能直接当作真实成果。</p></Card>
+          <Card><h2>机器线索类型</h2>{breakdown.length ? <BarList items={breakdown} /> : <div className="empty-state"><p>类型统计尚未同步。</p></div>}</Card>
+        </div>
+        <Card><div className="empty-state"><h2>{candidates} 条候选正在内部核验</h2><p>公开工作台只展示脱敏统计，不展示船员姓名、真实群名、聊天原文或证据编号。核验通过并人工确认后，才会出现在好事内容列表。</p><small>最近核验：{data.snapshot?.reviewedAt || "尚未完成"}　数据更新：{data.snapshot?.updatedAt || "-"}</small></div></Card>
+      </div>
+    );
   }
   return (
     <div className="page-stack">
