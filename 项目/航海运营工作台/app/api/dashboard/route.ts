@@ -15,6 +15,8 @@ type Snapshot = {
   active_groups_json: string;
   project_overview_json: string;
   aggregate_report_json: string;
+  scys_projects_json: string;
+  scys_updated_at: string | null;
 };
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -23,7 +25,7 @@ function parseJson<T>(value: string, fallback: T): T {
 
 export async function GET() {
   const snapshot = await env.DB.prepare(
-    "SELECT source_name, records, groups_count, date_start, date_end, good_news_candidates, public_publishable, updated_at, source_checksum, analysis_status, daily_trends_json, active_groups_json, project_overview_json, aggregate_report_json FROM dashboard_snapshots WHERE snapshot_id = 'latest'"
+    "SELECT source_name, records, groups_count, date_start, date_end, good_news_candidates, public_publishable, updated_at, source_checksum, analysis_status, daily_trends_json, active_groups_json, project_overview_json, aggregate_report_json, scys_projects_json, scys_updated_at FROM dashboard_snapshots WHERE snapshot_id = 'latest'"
   ).first<Snapshot>();
 
   if (!snapshot) {
@@ -45,6 +47,8 @@ export async function GET() {
     active_groups: parseJson(snapshot.active_groups_json, []),
     project_overview: parseJson(snapshot.project_overview_json, {}),
     aggregate_report: parseJson(snapshot.aggregate_report_json, {}),
+    scys_projects: parseJson(snapshot.scys_projects_json, []),
+    scys_updated_at: snapshot.scys_updated_at,
     note: "这是聚合分析结果；原始消息、姓名和证据未进入公开接口。",
   });
 }

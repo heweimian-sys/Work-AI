@@ -1,0 +1,15 @@
+{
+  "source": "生财有术 MCP",
+  "label": "2026年8月实战活动",
+  "dataAsOf": "2026-08-19T19:05:00+08:00",
+  "projects": [
+    {"id":"10226","name":"小红书教育资料 PPT","type":"Mini航海","platforms":["电商","小红书"],"target":"完成至少 20 个 AI 原创小红书虚拟产品，上架店铺并发布 50 篇原创笔记，完成多轮市场验证","status":"进行中","joinCount":303,"outputCount":58},
+    {"id":"10092","name":"AI 产品（国外-热词游戏站）","type":"常规航海","platforms":["AI","出海"],"target":"用 AI 做海外游戏热词站，低成本切入出海","status":"进行中","joinCount":1417,"outputCount":3498},
+    {"id":"10093","name":"AI 第二大脑 - 内容创作系统","type":"常规航海","platforms":["AI","自媒体"],"target":"用知识库重构 AI 内容创作工作流，沉淀可持续赚钱系统","status":"进行中","joinCount":3611,"outputCount":9569},
+    {"id":"10094","name":"AI 高质感视频 - 爆款短片实战","type":"常规航海","platforms":["AI","视频号/微信"],"target":"不用相机和演员，零基础 3 周做出你的 AI 短片","status":"进行中","joinCount":1585,"outputCount":3387},
+    {"id":"10095","name":"AI 视频带货","type":"常规航海","platforms":["AI","电商"],"target":"用 AI 批量做带货视频，跑通真实测试","status":"进行中","joinCount":4476,"outputCount":9122},
+    {"id":"10096","name":"AI Agent 架构师","type":"常规航海","platforms":["AI","技能/成长"],"target":"把重复工作交给 Agent 自动完成","status":"进行中","joinCount":6265,"outputCount":10000},
+    {"id":"10097","name":"Agent Skills 炼术营","type":"常规航海","platforms":["AI","技能/成长"],"target":"把你的经验，做成可调用 Skill 资产","status":"进行中","joinCount":904,"outputCount":3381},
+    {"id":"10105","name":"AI 产品（国内-微信小程序）","type":"常规航海","platforms":["AI","视频号/微信"],"target":"把真实需求，做成可上线的小程序","status":"进行中","joinCount":2896,"outputCount":7881}
+  ]
+}

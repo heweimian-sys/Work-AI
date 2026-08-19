@@ -160,8 +160,9 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
   const projectGoods = data.goodNews.filter((g) => g.project_id === project.project_id);
   if (data.mode === "api") {
     return <div className="page-stack">
-      <MetricGrid metrics={[["项目状态", project.status, "green"], ["好事待核验", String(data.snapshot?.candidates || 0), "gold"], ["覆盖群组", String(data.snapshot?.groups || 0), "blue"], ["记录数", (data.snapshot?.records || 0).toLocaleString(), "orange"]]} compact />
-      <div className="two-col"><Card><h2>项目总览</h2><p>{project.summary}</p><InfoList items={[["日期范围", data.date], ["数据覆盖", project.coverage], ["最后更新", data.snapshot?.updatedAt || "-"]]} /></Card><Card><h2>逐日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#237B69" /></Card></div>
+      <div className="inline-title-control"><select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}</select></div>
+      <MetricGrid metrics={[["项目状态", project.status, "green"], ["报名人数", (project.joinCount || 0).toLocaleString(), "gold"], ["审核可见产出", (project.outputCount || 0).toLocaleString(), "blue"], ["项目方向", project.platforms?.join(" / ") || "-", "orange"]]} compact />
+      <div className="two-col"><Card><h2>生财官方项目信息</h2><p>{project.summary}</p><InfoList items={[["航海类型", project.type || project.stage], ["数据来源", project.coverage], ["群聊聚合范围", data.date]]} /></Card><Card><h2>逐日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#237B69" /></Card></div>
       <Card><h2>待核验内容</h2><div className="empty-state"><p>候选好事仍在去重和证据核验，未确认前不展示人员、群名或原文。</p></div></Card>
     </div>;
   }
@@ -442,7 +443,7 @@ function Funnel() {
 }
 
 function ProjectMini({ project }: { project: Project }) {
-  return <article><h3>{project.name}</h3><p>{project.summary}</p><Tag tone={project.risk === "中风险" ? "orange" : "mint"}>{project.risk}</Tag><strong>{project.todayGoodNews} 条</strong><small>好事待核验</small></article>;
+  return <article><h3>{project.name}</h3><p>{project.summary}</p><Tag tone="mint">{project.status}</Tag><strong>{(project.outputCount || 0).toLocaleString()}</strong><small>审核可见产出</small></article>;
 }
 
 function ActionSummary({ title, text, onClick }: { title: string; text: string; onClick: () => void }) {
