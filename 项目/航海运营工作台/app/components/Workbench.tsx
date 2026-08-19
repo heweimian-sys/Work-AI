@@ -96,50 +96,38 @@ function Topbar({ data, page, loadError }: { data: DashboardData; page: PageKey;
 }
 
 function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => void }) {
-  const hero = data.goodNews[0];
+  const totalJoined = data.projects.reduce((sum, project) => sum + (project.joinCount || 0), 0);
+  const totalOutputs = data.projects.reduce((sum, project) => sum + (project.outputCount || 0), 0);
+  const leading = [...data.projects].sort((a, b) => (b.outputCount || 0) - (a.outputCount || 0))[0];
   return (
     <div className="page-stack">
       <MetricGrid metrics={[
-        ["真实记录", (data.snapshot?.records || 0).toLocaleString(), "gold"],
-        ["覆盖群组", String(data.snapshot?.groups || 0), "orange"],
-        ["好事候选", String(data.snapshot?.candidates || 0), "blue"],
-        ["已确认公开", String(data.snapshot?.published || 0), "red"],
+        ["航海项目", String(data.projects.length), "gold"],
+        ["报名人数", totalJoined.toLocaleString(), "orange"],
+        ["审核可见产出", totalOutputs.toLocaleString(), "blue"],
+        ["数据来源", "生财 MCP", "green"],
       ]} />
       <div className="overview-grid">
         <Card className="span-2">
-          <h2>今日航海好事</h2>
-          {hero ? <article className="hero-good">
-            <div>
-              <h3>{hero.summary}</h3>
-              <div className="meta-grid">
-                <span>来源/群组：{hero.project} {hero.group}</span>
-                <span>参与者：{hero.sailor}</span>
-                <span>可信度：{hero.confidence}%</span>
-                <span>证据 ID：{hero.evidence_ids.join("、")}</span>
-              </div>
-            </div>
-            <div className="button-row">
-              <button className="ghost" onClick={() => go("evidence")}>查看证据</button>
-              <button onClick={() => go("actions")}>创建跟进</button>
-            </div>
-          </article> : <div className="empty-state"><h3>{data.snapshot?.records ? "真实资料已完成首轮聚合" : "暂无可展示数据"}</h3><p>{data.snapshot?.records ? `已解析 ${(data.snapshot.records).toLocaleString()} 条记录、覆盖 ${data.snapshot.groups} 个群组；${data.snapshot.candidates} 条好事候选正在去重和核验，暂不公开原始内容。` : "完成 ZIP 分析后，匿名聚合结果会显示在这里。"}</p></div>}
-          <DataTable headers={["项目", "原始总结（摘要）", "类型", "状态"]} rows={data.goodNews.slice(1).map((g) => [g.project, g.summary, <Tag key={g.good_news_id} tone="mint">{g.type}</Tag>, <Tag key={`${g.good_news_id}-s`} tone={g.status.includes("待") ? "orange" : "green"}>{g.status}</Tag>])} />
-          <button className="link-button" onClick={() => go("good-news")}>查看候选列表 ›</button>
+          <h2>航海项目成果概览</h2>
+          <div className="empty-state"><h3>{leading ? `${leading.name} 当前审核可见产出最多` : "等待 MCP 项目数据"}</h3><p>当前页面仅使用生财 MCP 数据，不读取群聊 ZIP、聊天原文或成员信息。</p></div>
+          <DataTable headers={["项目", "类型", "报名人数", "审核可见产出", "状态"]} rows={data.projects.map((project) => [project.name, project.type || project.stage, (project.joinCount || 0).toLocaleString(), (project.outputCount || 0).toLocaleString(), <Tag key={project.project_id} tone="green">{project.status}</Tag>])} />
+          <button className="link-button" onClick={() => go("good-news")}>查看成果分布 ›</button>
         </Card>
         <aside className="side-stack">
           <Card>
-            <h2>逐日消息趋势</h2>
-            <LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#B88934" />
+            <h2>项目产出分布</h2>
+            <BarList items={data.projects.map((project) => ({ name: project.name, count: project.outputCount || 0 }))} />
             <div className="tag-row">
-              <Tag tone="mint">仅展示匿名统计</Tag><Tag tone="gold">原文不公开</Tag>
+              <Tag tone="mint">生财 MCP</Tag><Tag tone="gold">审核可见口径</Tag>
             </div>
           </Card>
           <Card>
             <h2>今天需要处理</h2>
             {[
-              [`${data.snapshot?.candidates || 0} 条好事待核验`, "去重、排除误判并关联内部证据"],
-              [`${data.snapshot?.published || 0} 条已公开`, "未经人工确认的内容不对外展示"],
-              [`${data.snapshot?.groups || 0} 个群组已覆盖`, "对外仅保留匿名消息量统计"],
+              [`${data.projects.length} 个项目已接入`, "核对项目状态与方向"],
+              [`${totalOutputs} 条审核可见产出`, "继续补充作品结构与成果分类"],
+              ["群聊数据已停用", "公开工作台只保留 MCP 数据"],
             ].map((item) => <ActionSummary key={item[0]} title={item[0]} text={item[1]} onClick={() => go("actions")} />)}
           </Card>
         </aside>
@@ -162,8 +150,8 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
     return <div className="page-stack">
       <div className="inline-title-control"><select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}</select></div>
       <MetricGrid metrics={[["项目状态", project.status, "green"], ["报名人数", (project.joinCount || 0).toLocaleString(), "gold"], ["审核可见产出", (project.outputCount || 0).toLocaleString(), "blue"], ["项目方向", project.platforms?.join(" / ") || "-", "orange"]]} compact />
-      <div className="two-col"><Card><h2>生财官方项目信息</h2><p>{project.summary}</p><InfoList items={[["航海类型", project.type || project.stage], ["数据来源", project.coverage], ["群聊聚合范围", data.date]]} /></Card><Card><h2>逐日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#237B69" /></Card></div>
-      <Card><h2>待核验内容</h2><div className="empty-state"><p>候选好事仍在去重和证据核验，未确认前不展示人员、群名或原文。</p></div></Card>
+      <div className="two-col"><Card><h2>生财官方项目信息</h2><p>{project.summary}</p><InfoList items={[["航海类型", project.type || project.stage], ["数据来源", project.coverage], ["MCP 更新时间", data.snapshot?.updatedAt || "-"]]} /></Card><Card><h2>项目产出对比</h2><BarList items={data.projects.map((item) => ({ name: item.name, count: item.outputCount || 0 }))} /></Card></div>
+      <Card><h2>内容边界</h2><div className="empty-state"><p>当前仅使用生财 MCP 项目数据，不读取群聊、ZIP、成员姓名或聊天原文。</p></div></Card>
     </div>;
   }
   return (
@@ -197,18 +185,15 @@ function ProjectDashboard({ data }: { data: DashboardData }) {
 function GoodNewsPage({ data }: { data: DashboardData }) {
   const [selected, setSelected] = useState<GoodNews>(data.goodNews[0]);
   if (!data.goodNews.length) {
-    const detected = data.snapshot?.detected || 0;
-    const candidates = data.snapshot?.candidates || 0;
-    const published = data.snapshot?.published || 0;
-    const breakdown = data.snapshot?.goodNewsBreakdown || [];
+    const outputs = data.projects.reduce((sum, project) => sum + (project.outputCount || 0), 0);
     return (
       <div className="page-stack">
-        <MetricGrid metrics={[["机器识别线索", String(detected), "gold"], ["进入人工核验", String(candidates), "orange"], ["已确认", "0", "blue"], ["可对外展示", String(published), "green"]]} compact />
+        <MetricGrid metrics={[["航海项目", String(data.projects.length), "gold"], ["审核可见产出", outputs.toLocaleString(), "blue"], ["数据来源", "生财 MCP", "green"], ["群聊数据", "未使用", "orange"]]} compact />
         <div className="two-col">
-          <Card><h2>核验进度</h2><BarList items={[{ name: "机器识别", count: detected }, { name: "人工核验队列", count: candidates }, { name: "确认可用", count: published }]} /><p className="insight">候选仍需逐条排除提问、计划和转述，不能直接当作真实成果。</p></Card>
-          <Card><h2>机器线索类型</h2>{breakdown.length ? <BarList items={breakdown} /> : <div className="empty-state"><p>类型统计尚未同步。</p></div>}</Card>
+          <Card><h2>项目产出分布</h2><BarList items={data.projects.map((project) => ({ name: project.name, count: project.outputCount || 0 }))} /></Card>
+          <Card><h2>项目报名分布</h2><BarList items={data.projects.map((project) => ({ name: project.name, count: project.joinCount || 0 }))} /></Card>
         </div>
-        <Card><div className="empty-state"><h2>{candidates} 条候选正在内部核验</h2><p>公开工作台只展示脱敏统计，不展示船员姓名、真实群名、聊天原文或证据编号。核验通过并人工确认后，才会出现在好事内容列表。</p><small>最近核验：{data.snapshot?.reviewedAt || "尚未完成"}　数据更新：{data.snapshot?.updatedAt || "-"}</small></div></Card>
+        <Card><div className="empty-state"><h2>个人好事案例暂不展示</h2><p>MCP 当前提供项目与审核可见产出数量，尚未形成可公开的个人成果案例。页面不会从群聊中补齐，也不会编造船员成果。</p><small>MCP 更新：{data.snapshot?.updatedAt || "-"}</small></div></Card>
       </div>
     );
   }
