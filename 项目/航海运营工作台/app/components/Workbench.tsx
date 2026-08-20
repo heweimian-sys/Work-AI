@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   CartesianGrid,
   Line,
@@ -10,468 +11,377 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Action, DashboardData, DashboardSnapshot, GoodNews, Group, Project, dashboardFromSnapshot } from "../lib/data";
+import {
+  DashboardResponse,
+  EMPTY_OPS,
+  McpOpsSnapshot,
+  McpProject,
+  daysRemaining,
+  formatDate,
+  formatInteger,
+  outputDensity,
+  openQaPerHundred,
+  reviewCoverage,
+  sum,
+} from "../lib/data";
 
 type PageKey = "overview" | "project" | "good-news" | "actions" | "reports" | "groups" | "evidence";
 
-const nav: { key: PageKey; label: string; path: string }[] = [
+const NAV: { key: PageKey; label: string; path: string }[] = [
   { key: "overview", label: "运营总览", path: "/" },
   { key: "project", label: "项目驾驶舱", path: "/project-dashboard" },
-  { key: "good-news", label: "航海好事", path: "/good-news" },
-  { key: "actions", label: "今日行动", path: "/actions" },
-  { key: "reports", label: "日报中心", path: "/reports" },
-  { key: "groups", label: "群组观察", path: "/groups" },
-  { key: "evidence", label: "资料与证据", path: "/evidence" },
+  { key: "good-news", label: "成果观察", path: "/good-news" },
+  { key: "actions", label: "运营行动", path: "/actions" },
+  { key: "reports", label: "项目快照", path: "/reports" },
+  { key: "groups", label: "项目对比", path: "/groups" },
+  { key: "evidence", label: "数据口径", path: "/evidence" },
 ];
+
+const TITLES: Record<PageKey, [string, string]> = {
+  overview: ["运营总览", "本期项目规模、产出、问答与临期事项"],
+  project: ["项目驾驶舱", "逐项目查看节奏、里程碑与运营压力"],
+  "good-news": ["成果观察", "只展示 MCP 可验证的作业产出，不冒充航海好事"],
+  actions: ["运营行动", "把项目指标转成需要人工判断的运营建议"],
+  reports: ["项目快照", "保存当前 MCP 截面，后续逐日形成趋势"],
+  groups: ["项目对比", "按项目、类型与方向比较关键指标"],
+  evidence: ["数据口径", "清楚说明来源、边界、新鲜度和缺失项"],
+};
+
+type OpsAction = {
+  priority: "P1" | "P2" | "P3";
+  project: string;
+  signal: string;
+  suggestion: string;
+  basis: string;
+};
 
 export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey }) {
   const [page, setPage] = useState<PageKey>(initialPage);
-  const [data, setData] = useState<DashboardData>(() => dashboardFromSnapshot({ ok: true, records: 0, groups: 0, date_range: null, good_news_candidates: 0, public_publishable: 0, updated_at: null }));
+  const [ops, setOps] = useState<McpOpsSnapshot>(EMPTY_OPS);
   const [loadError, setLoadError] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<DashboardResponse["health_status"]>();
+
   useEffect(() => {
     fetch("/api/dashboard", { cache: "no-store" })
-      .then((response) => { if (!response.ok) throw new Error("dashboard unavailable"); return response.json(); })
-      .then((snapshot: DashboardSnapshot) => { setData(dashboardFromSnapshot(snapshot)); setLoadError(false); })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("dashboard unavailable");
+        return await response.json() as DashboardResponse;
+      })
+      .then((response) => {
+        setOps(response.ops || EMPTY_OPS);
+        setLoadError(!response.ops);
+        setHealthStatus(response.health_status);
+      })
       .catch(() => setLoadError(true));
   }, []);
+
+  const navigate = (item: (typeof NAV)[number]) => {
+    window.history.pushState(null, "", item.path);
+    setPage(item.key);
+  };
 
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">航海运营工作台</div>
-        <nav>
-          {nav.map((item) => (
-            <a
-              className={`nav-item ${item.key === page ? "active" : ""}`}
-              href={item.path}
-              key={item.key}
-              onClick={(event) => {
-                event.preventDefault();
-                window.history.pushState(null, "", item.path);
-                setPage(item.key);
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="sidebar-note">匿名聚合 · 内部核验后公开</div>
+        <nav>{NAV.map((item) => (
+          <a className={`nav-item ${item.key === page ? "active" : ""}`} href={item.path} key={item.key} onClick={(event) => { event.preventDefault(); navigate(item); }}>{item.label}</a>
+        ))}</nav>
+        <div className="sidebar-note">仅使用生财 MCP<br />项目级安全聚合</div>
       </aside>
       <section className="workspace">
-        <Topbar data={data} page={page} loadError={loadError} />
-        {page === "overview" && <Overview data={data} go={setPage} />}
-        {page === "project" && <ProjectDashboard data={data} />}
-        {page === "good-news" && <GoodNewsPage data={data} />}
-        {page === "actions" && <ActionsPage data={data} />}
-        {page === "reports" && <ReportsPage data={data} />}
-        {page === "groups" && <GroupsPage data={data} />}
-        {page === "evidence" && <EvidencePage data={data} />}
+        <Topbar ops={ops} page={page} loadError={loadError} healthStatus={healthStatus} />
+        {loadError && !ops.projects.length ? <EmptyState title="MCP 数据暂时无法加载" text="页面会保留明确空状态，不会回退到演示数据。" /> : null}
+        {!loadError || ops.projects.length ? <>
+          {page === "overview" && <Overview ops={ops} go={setPage} />}
+          {page === "project" && <ProjectCockpit ops={ops} />}
+          {page === "good-news" && <ResultsView ops={ops} />}
+          {page === "actions" && <ActionsView ops={ops} />}
+          {page === "reports" && <SnapshotView ops={ops} />}
+          {page === "groups" && <CompareView ops={ops} />}
+          {page === "evidence" && <DataScopeView ops={ops} />}
+        </> : null}
       </section>
     </main>
   );
 }
 
-function Topbar({ data, page, loadError }: { data: DashboardData; page: PageKey; loadError: boolean }) {
-  const titles: Record<PageKey, [string, string]> = {
-    overview: ["运营总览", "今天最值得关注的航海动态"],
-    project: ["项目驾驶舱", "项目进展、结果与风险"],
-    "good-news": ["航海好事", "看见船员拿到的真实结果"],
-    actions: ["今日行动", "把判断转成可执行的下一步"],
-    reports: ["日报中心", "确认每日分析，沉淀好事与行动"],
-    groups: ["群组观察", "发现活跃、风险与潜在好事"],
-    evidence: ["资料与证据", "让每条判断都能回到原始记录"],
-  };
+function Topbar({ ops, page, loadError, healthStatus }: { ops: McpOpsSnapshot; page: PageKey; loadError: boolean; healthStatus?: DashboardResponse["health_status"] }) {
+  const hasPartialResults = ops.sourceChecks.some((check) => check.status.includes("部分"));
+  const syncState = loadError
+    ? "同步异常"
+    : healthStatus === "stale"
+      ? "MCP 快照已陈旧"
+      : hasPartialResults
+        ? "MCP 有部分结果"
+        : ops.retrievedAt
+          ? `MCP 拉取 ${formatDate(ops.retrievedAt)}`
+          : "等待 MCP";
   return (
     <header className="topbar">
-      <div>
-        <h1>{titles[page][0]}</h1>
-        <p>{titles[page][1]}</p>
-      </div>
+      <div><h1>{TITLES[page][0]}</h1><p>{TITLES[page][1]}</p></div>
       <div className="top-actions">
-        <button className="date-button">{data.date}⌄</button>
-        <span className="demo-badge">{loadError ? "数据暂时无法加载" : data.snapshot?.updatedAt ? `更新：${data.snapshot.updatedAt}` : "等待正式数据"}</span>
+        <span className="scope-chip">{ops.label}</span>
+        <span className={`sync-chip ${loadError || healthStatus === "stale" ? "error" : hasPartialResults ? "warn" : ""}`}>{syncState}</span>
       </div>
     </header>
   );
 }
 
-function Overview({ data, go }: { data: DashboardData; go: (page: PageKey) => void }) {
-  const totalJoined = data.projects.reduce((sum, project) => sum + (project.joinCount || 0), 0);
-  const totalOutputs = data.projects.reduce((sum, project) => sum + (project.outputCount || 0), 0);
-  const leading = [...data.projects].sort((a, b) => (b.outputCount || 0) - (a.outputCount || 0))[0];
-  return (
-    <div className="page-stack">
-      <MetricGrid metrics={[
-        ["航海项目", String(data.projects.length), "gold"],
-        ["报名人数", totalJoined.toLocaleString(), "orange"],
-        ["审核可见产出", totalOutputs.toLocaleString(), "blue"],
-        ["数据来源", "生财 MCP", "green"],
-      ]} />
-      <div className="overview-grid">
-        <Card className="span-2">
-          <h2>航海项目成果概览</h2>
-          <div className="empty-state"><h3>{leading ? `${leading.name} 当前审核可见产出最多` : "等待 MCP 项目数据"}</h3><p>当前页面仅使用生财 MCP 数据，不读取群聊 ZIP、聊天原文或成员信息。</p></div>
-          <DataTable headers={["项目", "类型", "报名人数", "审核可见产出", "状态"]} rows={data.projects.map((project) => [project.name, project.type || project.stage, (project.joinCount || 0).toLocaleString(), (project.outputCount || 0).toLocaleString(), <Tag key={project.project_id} tone="green">{project.status}</Tag>])} />
-          <button className="link-button" onClick={() => go("good-news")}>查看成果分布 ›</button>
-        </Card>
-        <aside className="side-stack">
-          <Card>
-            <h2>项目产出分布</h2>
-            <BarList items={data.projects.map((project) => ({ name: project.name, count: project.outputCount || 0 }))} />
-            <div className="tag-row">
-              <Tag tone="mint">生财 MCP</Tag><Tag tone="gold">审核可见口径</Tag>
-            </div>
-          </Card>
-          <Card>
-            <h2>今天需要处理</h2>
-            {[
-              [`${data.projects.length} 个项目已接入`, "核对项目状态与方向"],
-              [`${totalOutputs} 条审核可见产出`, "继续补充作品结构与成果分类"],
-              ["群聊数据已停用", "公开工作台只保留 MCP 数据"],
-            ].map((item) => <ActionSummary key={item[0]} title={item[0]} text={item[1]} onClick={() => go("actions")} />)}
-          </Card>
-        </aside>
-      </div>
+function Overview({ ops, go }: { ops: McpOpsSnapshot; go: (page: PageKey) => void }) {
+  const projects = ops.projects;
+  const joins = sum(projects, "joinCount");
+  const outputs = sum(projects, "outputCount");
+  const qaOpen = sum(projects, "qaOpen");
+  const unreviewed = sum(projects, "unreviewedCount");
+  const endingSoon = projects.filter((project) => daysRemaining(project) <= 7).length;
+  const reviewPressureLeader = [...projects].sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0))[0];
+  const pressureLeader = [...projects].sort((a, b) => b.qaOpen - a.qaOpen)[0];
+
+  return <div className="page-stack">
+    <MetricGrid metrics={[
+      ["本期项目", formatInteger(projects.length), "green", `${ops.historicalPeriodCount} 个历史期数`],
+      ["报名人数", formatInteger(joins), "gold", "activityList 口径"],
+      ["审核可见产出", formatInteger(outputs), "blue", `较上次 +${formatInteger(ops.snapshotComparison.outputDelta)}`],
+      ["未点评作业", formatInteger(unreviewed), "red", "导师点评状态"],
+      ["待回答问答", formatInteger(qaOpen), "red", "MCP 可见状态"],
+      ["7 天内结束", formatInteger(endingSoon), "orange", "需进入收尾节奏"],
+    ]} />
+
+    <div className="overview-grid mcp-overview-grid">
       <Card>
-        <h2>项目状态</h2>
-        <div className="project-strip">
-          {data.projects.map((project) => <ProjectMini key={project.project_id} project={project} />)}
-        </div>
+        <SectionHead title="项目运营矩阵" note="排序依据为审核可见产出量" action="打开项目对比" onAction={() => go("groups")} />
+        <ProjectTable projects={[...projects].sort((a, b) => b.outputCount - a.outputCount)} />
       </Card>
-    </div>
-  );
-}
-
-function ProjectDashboard({ data }: { data: DashboardData }) {
-  const [selected, setSelected] = useState(data.projects[0].project_id);
-  const project = data.projects.find((p) => p.project_id === selected) ?? data.projects[0];
-  const projectGoods = data.goodNews.filter((g) => g.project_id === project.project_id);
-  if (data.mode === "api") {
-    return <div className="page-stack">
-      <div className="inline-title-control"><select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}</select></div>
-      <MetricGrid metrics={[["项目状态", project.status, "green"], ["报名人数", (project.joinCount || 0).toLocaleString(), "gold"], ["审核可见产出", (project.outputCount || 0).toLocaleString(), "blue"], ["项目方向", project.platforms?.join(" / ") || "-", "orange"]]} compact />
-      <div className="two-col"><Card><h2>生财官方项目信息</h2><p>{project.summary}</p><InfoList items={[["航海类型", project.type || project.stage], ["数据来源", project.coverage], ["MCP 更新时间", data.snapshot?.updatedAt || "-"]]} /></Card><Card><h2>项目产出对比</h2><BarList items={data.projects.map((item) => ({ name: item.name, count: item.outputCount || 0 }))} /></Card></div>
-      <Card><h2>内容边界</h2><div className="empty-state"><p>当前仅使用生财 MCP 项目数据，不读取群聊、ZIP、成员姓名或聊天原文。</p></div></Card>
-    </div>;
-  }
-  return (
-    <div className="page-stack">
-      <div className="inline-title-control"><select value={selected} onChange={(e) => setSelected(e.target.value as Project["project_id"])}>{data.projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}</select></div>
-      <MetricGrid metrics={[
-        ["当前阶段", project.stage, "gold"],
-        ["项目状态", project.status, "green"],
-        ["今日好事", String(project.todayGoodNews), "gold"],
-        ["待处理行动", String(project.actions), "blue"],
-        ["群聊覆盖", project.coverage, "orange"],
-      ]} compact />
-      <div className="two-col">
-        <Card><h2>今日项目判断</h2><Judgement /></Card>
-        <Card><h2>群聊趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.activeGroups }))} color="#237B69" /><div className="chart-legend"><span>活跃群 6</span><span>低活跃群 2</span></div></Card>
-      </div>
-      <div className="project-main-grid">
-        <Card className="span-2"><h2>本项目航海好事</h2><GoodNewsTable goods={projectGoods.length ? projectGoods : data.goodNews} /></Card>
-        <Card><h2>高频讨论</h2><BarList items={data.topics} /></Card>
-        <Card className="project-progress"><h2>用户进展</h2><Funnel /></Card>
-      </div>
-      <div className="two-col">
-        <Card><h2>风险与异常</h2><DataTable headers={["风险描述", "严重度", "证据", "负责人"]} rows={[["2 个低活跃群连续两天无有效反馈", <Tag key="r1" tone="red">高</Tag>, "EV-0807, EV-0812", "航海家_小满"], ["部分船员发布内容疑似搬运", <Tag key="r2" tone="orange">中</Tag>, "EV-0803", "内容管理员"], ["1 名船员成交数据未提供证据截图", <Tag key="r3" tone="mint">低</Tag>, "EV-0815", "运营小助手"]]} /></Card>
-        <Card><h2>运营行动建议</h2><DataTable headers={["优先级", "行动建议", "负责人", "状态"]} rows={data.actions.slice(0, 3).map((a) => [<Tag key={a.action_id} tone={a.priority === "P1" ? "red" : "orange"}>{a.priority}</Tag>, a.suggestion, a.owner, <Tag key={`${a.action_id}-s`} tone="mint">{a.status}</Tag>])} /></Card>
-      </div>
-      <Card className="folded">数据覆盖与最新待确认日报⌄</Card>
-    </div>
-  );
-}
-
-function GoodNewsPage({ data }: { data: DashboardData }) {
-  const [selected, setSelected] = useState<GoodNews>(data.goodNews[0]);
-  if (!data.goodNews.length) {
-    const outputs = data.projects.reduce((sum, project) => sum + (project.outputCount || 0), 0);
-    return (
-      <div className="page-stack">
-        <MetricGrid metrics={[["航海项目", String(data.projects.length), "gold"], ["审核可见产出", outputs.toLocaleString(), "blue"], ["数据来源", "生财 MCP", "green"], ["群聊数据", "未使用", "orange"]]} compact />
-        <div className="two-col">
-          <Card><h2>项目产出分布</h2><BarList items={data.projects.map((project) => ({ name: project.name, count: project.outputCount || 0 }))} /></Card>
-          <Card><h2>项目报名分布</h2><BarList items={data.projects.map((project) => ({ name: project.name, count: project.joinCount || 0 }))} /></Card>
-        </div>
-        <Card><div className="empty-state"><h2>个人好事案例暂不展示</h2><p>MCP 当前提供项目与审核可见产出数量，尚未形成可公开的个人成果案例。页面不会从群聊中补齐，也不会编造船员成果。</p><small>MCP 更新：{data.snapshot?.updatedAt || "-"}</small></div></Card>
-      </div>
-    );
-  }
-  return (
-    <div className="page-stack">
-      <FilterBar labels={["全部项目", "全部类型", "可信度", "时间范围", "搜索船员或原文"]} action="导出好事" />
-      <MetricGrid metrics={[["今日好事", "18", "gold"], ["近7天好事", "96", "gold"], ["拿到结果", "41", "gold"], ["待核实", "6", "orange"], ["可对外传播", "12", "blue"]]} compact />
-      <div className="three-col">
-        <Card><h2>近7天好事趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.goodNews }))} color="#B88934" /></Card>
-        <Card><h2>好事类型分布</h2><BarList items={[{ name: "完成作品", count: 28 }, { name: "出单/成交", count: 21 }, { name: "突破卡点", count: 17 }, { name: "涨粉", count: 13 }, { name: "获得客户", count: 9 }]} /></Card>
-        <Card><h2>项目分布</h2><BarList items={[{ name: "小红书实战营", count: 68 }, { name: "视频号实战营", count: 42 }, { name: "私域增长训练营", count: 28 }, { name: "知识星球运营营", count: 18 }]} /><p className="insight">小红书实战营今日新增最多</p></Card>
-      </div>
-      <div className="detail-grid">
-        <Card><h2>最新好事</h2><GoodNewsTable goods={data.goodNews} onSelect={setSelected} selected={selected.good_news_id} /><button className="link-button">查看更多 ›</button></Card>
-        <GoodNewsDetail item={selected} />
+      <div className="side-stack">
+        <Card><h2>本期关键判断</h2><div className="signal-list">
+          <Signal tone="blue" label="点评压力" value={reviewPressureLeader ? `${reviewPressureLeader.name}：${formatInteger(reviewPressureLeader.unreviewedCount ?? 0)} 未点评` : "等待数据"} detail="点评状态聚合；查询边界项目按下限展示。" />
+          <Signal tone="red" label="答疑压力" value={pressureLeader ? `${pressureLeader.name}：${formatInteger(pressureLeader.qaOpen)} 待回答` : "等待数据"} detail="依据 MCP 问答状态，需要运营确认实际处理机制。" />
+          <Signal tone="orange" label="收尾窗口" value={`${endingSoon} 个项目将在 7 天内结束`} detail="优先检查最终成果任务、提醒节奏与答疑承接。" />
+        </div></Card>
+        <Card><h2>运营动作入口</h2><button className="full" onClick={() => go("actions")}>查看自动建议的行动队列</button><p className="card-note">建议仅基于聚合指标生成，执行前仍需运营人员判断。</p></Card>
       </div>
     </div>
-  );
-}
 
-function ActionsPage({ data }: { data: DashboardData }) {
-  const [selected, setSelected] = useState<Action>(data.actions[0]);
-  if (!data.actions.length) {
-    return <EmptyPanel title="行动建议待生成" text="首轮聚合已完成，待好事候选核验后生成可执行的运营行动。" />;
-  }
-  return (
-    <div className="page-stack">
-      <FilterBar labels={["全部项目", "全部负责人", "全部来源", "优先级", "状态", "搜索问题或行动"]} action="新建行动" />
-      <MetricGrid metrics={[["待处理", "8", "orange"], ["今日到期", "5", "orange"], ["高优先级", "3", "red"], ["已完成", "12", "green"], ["来自航海好事", "4", "gold"]]} compact />
-      <div className="detail-grid">
-        <Card>
-          <h2>行动队列</h2>
-          <ActionGroup title="立即处理" actions={data.actions.slice(0, 3)} onSelect={setSelected} />
-          <ActionGroup title="今天完成" actions={data.actions.slice(3, 5)} onSelect={setSelected} />
-          <ActionGroup title="本周跟进" actions={data.actions.slice(5)} onSelect={setSelected} />
-          <h2 className="section-gap">今日已完成</h2>
-          <DataTable headers={["项目", "问题", "建议动作", "来源", "负责人", "完成时间", "状态"]} rows={[["小红书实战营 3 期", "首个资料包支付确认", "已确认资料包并发放", <Tag key="s1" tone="mint">航海好事</Tag>, "航海家_小满", "10:12", <Tag key="d1" tone="green">已完成</Tag>]]} />
-        </Card>
-        <aside className="side-stack">
-          <Card><h2>今日完成进度</h2><Donut value={60} label="12/20" /><Workload /></Card>
-          <Card><h2>行动来源</h2><SourceList /></Card>
-          <ActionDetail action={selected} />
-        </aside>
-      </div>
+    <div className="two-col equal-cols">
+      <Card><h2>人均作业密度</h2><BarList items={[...projects].sort((a, b) => outputDensity(b) - outputDensity(a)).map((project) => ({ name: project.name, value: outputDensity(project) }))} format={(value) => value.toFixed(2)} /></Card>
+      <Card><h2>近 8 期项目数量</h2><TrendChart data={ops.recentTimeline.map((item) => ({ label: item.label, value: item.projects }))} /></Card>
     </div>
-  );
-}
-
-function ReportsPage({ data }: { data: DashboardData }) {
-  const selected = data.reports[0];
-  if (!selected) return <EmptyPanel title="暂无聚合日报" text="ZIP 解析完成后，匿名聚合日报会显示在这里。" />;
-  if (data.mode === "api") return <div className="page-stack">
-    <MetricGrid metrics={[["原始记录", selected.raw.toLocaleString(), "blue"], ["覆盖群组", String(data.snapshot?.groups || 0), "green"], ["好事待核验", String(selected.goodNews), "gold"], ["已公开", String(data.snapshot?.published || 0), "orange"]]} compact />
-    <div className="two-col"><Card><h2>聚合日报</h2><h3>{selected.project}</h3><p>{selected.mainLine}</p><InfoList items={[["日期范围", selected.date], ["数据状态", selected.dataStatus], ["最后更新", selected.updatedAt]]} /></Card><Card><h2>日消息趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#397AA8" /></Card></div>
-    <Card><div className="empty-state"><h2>内容仍待内部确认</h2><p>公开工作台不提供确认、修改或发布权限。</p></div></Card>
   </div>;
-  return (
-    <div className="page-stack">
-      <FilterBar labels={["全部项目", "日报状态", "数据状态", "时间范围", "搜索项目或群组"]} action="生成今日日报" />
-      <MetricGrid metrics={[["待确认日报", "3", "blue"], ["已确认日报", "24", "green"], ["今日提取好事", "18", "gold"], ["今日生成行动", "8", "orange"], ["数据异常", "1", "red"]]} compact />
-      <div className="reports-grid">
-        <Card><h2>日报列表</h2><ReportList reports={data.reports} /></Card>
-        <Card><h2>日报预览</h2><ReportPreview report={selected} /></Card>
-        <Card><h2>确认信息</h2><InfoList items={[["日报状态", "待确认"], ["request_id", selected.request_id], ["project_id", selected.project_id], ["覆盖群组", selected.coverage], ["原始记录数", String(selected.raw)], ["去重后记录数", String(selected.deduped)], ["数据更新时间", selected.updatedAt], ["数据状态", selected.dataStatus]]} /><div className="warning">发现问题：缺少 1 个群数据（9群-成长营）</div><button>确认日报</button><button className="ghost full">退回补充</button><div className="confirm-result"><span>好事入库 <b>6</b></span><span>行动入队 <b>3</b></span></div></Card>
-      </div>
-      <Card className="folded">技术字段与处理记录⌄</Card>
-    </div>
-  );
 }
 
-function GroupsPage({ data }: { data: DashboardData }) {
-  const selected = data.groups[0];
-  if (!selected) return <EmptyPanel title="暂无群组聚合数据" text="群组名会匿名化后显示，不会公开真实群名。" />;
-  if (data.mode === "api") return <div className="page-stack">
-    <MetricGrid metrics={[["覆盖群组", String(data.snapshot?.groups || 0), "blue"], ["最高消息量", selected.messages.toLocaleString(), "green"], ["分析天数", String(data.trends.length), "orange"]]} compact />
-    <div className="groups-main-grid"><Card className="span-2"><h2>消息量与活跃群趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#397AA8" /></Card><Card><h2>匿名活跃群排行</h2><RankList groups={data.groups} /></Card></div>
-    <Card><h2>匿名群组消息量</h2><DataTable headers={["群组", "消息量", "数据状态"]} rows={data.groups.map((g) => [g.group, g.messages, <Tag key={g.group_id} tone="green">已覆盖</Tag>])} /></Card>
+function ProjectCockpit({ ops }: { ops: McpOpsSnapshot }) {
+  const [selectedId, setSelectedId] = useState(ops.projects[0]?.id || "");
+  const project = ops.projects.find((item) => item.id === selectedId) || ops.projects[0];
+  if (!project) return <EmptyState title="暂无项目" text="MCP 返回项目后会显示驾驶舱。" />;
+  const remaining = daysRemaining(project);
+
+  return <div className="page-stack">
+    <div className="project-selector"><label>当前项目</label><select value={project.id} onChange={(event) => setSelectedId(event.target.value)}>{ops.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+    <section className="project-hero-band">
+      <Image src={project.avatar} alt="" width={80} height={80} unoptimized />
+      <div><div className="tag-row"><Tag tone="green">{project.status}</Tag><Tag tone="blue">{project.type}</Tag>{project.platforms.map((platform) => <Tag key={platform} tone="gold">{platform}</Tag>)}</div><h2>{project.name}</h2><p>{project.target}</p></div>
+      <div className="hero-days"><strong>{remaining}</strong><span>天后结束</span></div>
+    </section>
+    <MetricGrid compact metrics={[
+      ["报名人数", formatInteger(project.joinCount), "gold", project.isFull ? "报名已满" : "MCP 报名口径"],
+      ["审核可见产出", `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, "blue", "不等于独立人数"],
+      ["未点评作业", `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, "red", "导师点评状态"],
+      ["点评覆盖", `${reviewCoverage(project).toFixed(2)}%`, "orange", project.outputCountAtBoundary ? "查询边界，仅供参考" : "已点评 ÷ 点评状态总量"],
+      ["人均作业密度", outputDensity(project).toFixed(2), "green", "产出数 ÷ 报名数"],
+      ["任务数", formatInteger(project.taskCount), "purple", "任务定义"],
+      ["待回答问答", formatInteger(project.qaOpen), "red", `${openQaPerHundred(project).toFixed(1)} / 百人`],
+      ["手册正文节点", formatInteger(project.manualReadableCount ?? 0), "green", `目录共 ${formatInteger(project.manualTocCount ?? 0)} 节点`],
+    ]} />
+    <div className="two-col equal-cols">
+      <Card><h2>项目节奏</h2><TimelineRow label="报名截止" value={formatDate(project.enrollEnd)} state="done" /><TimelineRow label="正式开船" value={formatDate(project.sailAt)} state="done" /><TimelineRow label="当前建议节点" value={project.currentMilestone} state="current" /><TimelineRow label="下一节点" value={`${project.nextMilestone} · ${formatDate(project.nextDueAt)}`} state="next" /><TimelineRow label="项目结束" value={formatDate(project.endAt)} state="next" /></Card>
+      <Card><h2>运营压力</h2><CompareBars rows={[
+        { label: "作业密度", value: outputDensity(project), max: 4, display: outputDensity(project).toFixed(2) },
+        { label: "点评覆盖", value: reviewCoverage(project), max: 100, display: `${reviewCoverage(project).toFixed(2)}%` },
+        { label: "百人待回答", value: openQaPerHundred(project), max: 30, display: openQaPerHundred(project).toFixed(1) },
+        { label: "问答解决", value: project.qaTotal ? (project.qaResolved / project.qaTotal) * 100 : 0, max: 100, display: `${project.qaResolved}/${project.qaTotal}` },
+      ]} /><p className="card-note">指标只用于项目间比较，不代表学习完成率或运营质量结论。</p></Card>
+    </div>
+    <Card><h2>当前运营判断</h2><div className="judgement-grid">
+      <Judgement label="阶段" text={remaining <= 7 ? "已进入收尾窗口，应优先守住最终任务与答疑。" : "仍在中段推进，重点看下一里程碑的作业承接。"} />
+      <Judgement label="产出" text={`当前人均 ${outputDensity(project).toFixed(2)} 条审核可见作业；作业量不能直接当作成果质量。`} />
+      <Judgement label="点评" text={`${formatInteger(project.unreviewedCount ?? 0)} 条处于未点评状态；应结合教练排班确认真实处理优先级。`} />
+      <Judgement label="问答" text={project.qaPartialResults ? `${formatInteger(project.qaOpen)} 条待回答，但 MCP 标记为部分结果，不能视为完整总量。` : `${formatInteger(project.qaOpen)} 条处于待回答状态，需要核对答疑排班和状态回写。`} />
+      <Judgement label="边界" text={project.outputCountAtBoundary ? "产出查询触及 10,000 条边界，页面按下限展示。" : project.qaPartialResults ? "问答端点返回 PARTIAL，页面保留缺口提示。" : "当前项目查询未标记结果边界。"} />
+    </div></Card>
   </div>;
-  return (
-    <div className="page-stack">
-      <FilterBar labels={["全部项目", "全部群组", "活跃等级", "数据状态", "近7天（8/11 - 8/17）"]} />
-      <MetricGrid metrics={[["今日消息", "1245", "blue"], ["活跃群", "21", "green"], ["覆盖群", "25 / 29", "blue"], ["提问求助", "136", "blue"], ["无互动群", "4", "red"], ["潜在好事", "9", "gold"]]} compact />
-      <div className="groups-main-grid">
-        <Card className="span-2"><h2>消息量与互动趋势</h2><LineChart data={data.trends.map((t) => ({ label: t.date, value: t.messages }))} color="#397AA8" /></Card>
-        <aside className="side-stack">
-          <Card><h2>活跃群排行 TOP5</h2><RankList groups={data.groups.slice(0, 5)} /></Card>
-          <Card><h2>风险群排行 TOP5</h2><RankList groups={data.groups.filter((g) => g.riskReason || g.status === "无互动")} risk /></Card>
-        </aside>
-      </div>
-      <div className="two-col wide-left">
-        <Card><h2>群组状态列表</h2><DataTable headers={["项目/群组", "今日消息", "有效互动", "提问", "好事线索", "活跃状态", "数据状态", "操作"]} rows={data.groups.map((g) => [`${g.project} · ${g.group}`, g.messages, g.interactions, g.questions, g.leads, <Tag key={g.group_id} tone={g.status === "无互动" ? "red" : g.status === "低活跃" ? "orange" : "mint"}>{g.status}</Tag>, <Tag key={`${g.group_id}-d`} tone={g.dataStatus === "未覆盖" ? "red" : "green"}>{g.dataStatus}</Tag>, "查看"])} /></Card>
-        <Card><h2>选中群组详情 <span className="pill">{selected.status}</span></h2><InfoList items={[["今日消息", String(selected.messages)], ["有效互动", String(selected.interactions)], ["提问求助", String(selected.questions)], ["好事线索", String(selected.leads)], ["覆盖状态", selected.dataStatus]]} /><h3>未解决提问</h3><ul className="bullet-list"><li>笔记流量突然下降怎么办？</li><li>如何判断选题有没有市场？</li></ul><h3>潜在好事线索</h3><div className="lead-card">学员分享爆款笔记拆解方法，可信度 88%，证据 EV-1012</div><button className="ghost full">识别为航海好事</button><button>创建行动</button></Card>
-      </div>
-      <Card><h2>缺失群与覆盖说明</h2><div className="coverage">计划群 29　已覆盖群 25　缺失群 4　数据更新于 8月17日 10:30</div></Card>
+}
+
+function ResultsView({ ops }: { ops: McpOpsSnapshot }) {
+  const projects = [...ops.projects].sort((a, b) => b.outputCount - a.outputCount);
+  const reviewed = sum(projects, "reviewedCount");
+  const unreviewed = sum(projects, "unreviewedCount");
+  return <div className="page-stack">
+    <MetricGrid metrics={[
+      ["审核可见产出", formatInteger(sum(projects, "outputCount")), "blue", "任务制作业"],
+      ["已点评作业", formatInteger(reviewed), "green", "导师点评状态"],
+      ["未点评作业", formatInteger(unreviewed), "red", "动态批次聚合"],
+      ["总体点评覆盖", `${((reviewed / Math.max(1, reviewed + unreviewed)) * 100).toFixed(2)}%`, "orange", "边界项目仅供参考"],
+      ["平均人均密度", (sum(projects, "outputCount") / Math.max(1, sum(projects, "joinCount"))).toFixed(2), "green", "跨项目粗粒度"],
+      ["可验证好事", "暂不可得", "orange", "MCP 无任务制映射"],
+    ]} />
+    <section className="boundary-banner"><strong>为什么这里不直接展示“航海好事”？</strong><span>{ops.goodNewsMapping.reason}</span></section>
+    <div className="two-col equal-cols">
+      <Card><h2>产出总量排行</h2><BarList items={projects.map((project) => ({ name: project.name, value: project.outputCount }))} format={(value) => formatInteger(value)} /></Card>
+      <Card><h2>点评覆盖排行</h2><BarList items={[...projects].sort((a, b) => reviewCoverage(b) - reviewCoverage(a)).map((project) => ({ name: project.name, value: reviewCoverage(project) }))} format={(value) => `${value.toFixed(2)}%`} /></Card>
     </div>
-  );
+    <Card><h2>项目成果观察</h2><DataTable headers={["项目", "审核可见产出", "已点评", "未点评", "点评覆盖", "人均密度", "最近提交", "数据质量"]} rows={projects.map((project) => [project.name, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, formatInteger(project.reviewedCount ?? 0), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, `${reviewCoverage(project).toFixed(2)}%`, outputDensity(project).toFixed(2), formatDate(project.lastSubmissionAt), <ProjectQualityTag key={project.id} project={project} />])} /></Card>
+  </div>;
 }
 
-function EvidencePage({ data }: { data: DashboardData }) {
-  if (!data.evidence.length) {
-    return <EmptyPanel title="证据仅在内部保留" text="原始群聊、成员信息和证据内容未进入公开 Worker；公开页只展示匿名聚合结果。" />;
-  }
-  const selected = data.evidence[0];
-  const sourceRows = [
-    ["微信群聊", "08-17 09:35", "正常", "监控 126 个群组，近 7 天消息已覆盖"],
-    ["飞书文档", "08-17 09:28", "正常", "同步 42 个文档空间，近 30 天内容已覆盖"],
-    ["飞书表格", "08-17 09:30", "正常", "同步 18 个表格，近 30 天数据已覆盖"],
-    ["小红书", "08-17 09:31", "正常", "监控 32 个账号，近 7 天笔记与评论已覆盖"],
-    ["知识星球", "08-17 09:24", "正常", "监控 28 个星球，近 7 天内容已覆盖"],
-    ["群聊监控", "08-17 09:33", "缺少群组授权", "监控 96 个关键词，近 7 天消息已覆盖"],
-    ["手动上传", "08-17 09:15", "正常", "人工上传的资料按时间戳纳入覆盖"],
-  ];
-  return (
-    <div className="page-stack">
-      <FilterBar labels={["全部项目", "资料类型", "关联对象", "核实状态", "时间范围", "搜索证据编号或原文"]} action="同步数据" />
-      <MetricGrid metrics={[["证据记录", "18432", "blue"], ["今日新增", "286", "orange"], ["已关联好事", "96", "gold"], ["已关联行动", "38", "blue"], ["待核实", "12", "red"], ["数据源", "7", "purple"]]} compact />
-      <section className="evidence-workspace">
-        <div className="evidence-list-pane">
-          <div className="evidence-tabs">
-            {["全部", "好事证据", "行动证据", "日报证据", "未关联"].map((tab, index) => <button className={index === 0 ? "active" : ""} key={tab}>{tab}</button>)}
-          </div>
-          <DataTable headers={["证据编号", "来源", "项目/群组", "原文摘要", "关联对象", "核实状态", "时间", "操作"]} rows={data.evidence.map((e) => [e.evidence_id, e.source, `${e.project} ${e.group}`, e.summary, e.related, <Tag key={`${e.evidence_id}-trust`} tone={e.trust === "已核实" ? "blue" : "red"}>{e.trust}</Tag>, e.time, <button className="text-action" key={`${e.evidence_id}-view`}>查看</button>])} />
-          <div className="pagination">共 18432 条　1 2 3 4 5 ... 1540　20 条/页</div>
-        </div>
-        <aside className="evidence-detail-pane">
-          <header className="detail-heading">
-            <h2>证据详情</h2>
-            <span>{selected.evidence_id}</span>
-          </header>
-          <div className="detail-meta">
-            <span>来源：群聊原文（{selected.project} {selected.group}）</span>
-            <span>采集时间：2025-08-17 09:41:23</span>
-          </div>
-          <h3>原文</h3>
-          <div className="quote">{selected.raw}</div>
-          <h3>原始截图</h3>
-          <div className="screenshot-mock">第一个资料包成交，收到 128 元<br />+128.00</div>
-          <div className="detail-fields">
-            <span>好事类型 <b>出单成交</b></span>
-            <span>金额 <b>128 元</b></span>
-            <span>可信度 <b>92%</b></span>
-            <span>核实状态 <b>已核实</b></span>
-          </div>
-          <div className="detail-split">
-            <div>
-              <h3>关联实体</h3>
-              <InfoList items={[["good_news_id", selected.good_news_id ?? "-"], ["project_id", selected.project_id], ["group_id", selected.group_id], ["request_id", selected.request_id]]} />
-            </div>
-            <div>
-              <h3>核实历史</h3>
-              <InfoList items={[["已核实", "航海运营_小源 · 2025-08-17 10:12:03"], ["待核实", "系统采集 · 2025-08-17 09:41:23"]]} />
-            </div>
-          </div>
-          <div className="button-row bottom">
-            <button className="ghost">标记已核实</button>
-            <button>关联到好事</button>
-          </div>
-        </aside>
-      </section>
-      <section className="flat-section">
-        <h2>数据源与覆盖</h2>
-        <DataTable headers={["数据源", "最近同步", "状态", "覆盖说明"]} rows={sourceRows.map(([source, syncedAt, status, coverage]) => [source, syncedAt, <Tag key={source} tone={status === "正常" ? "blue" : "orange"}>{status}</Tag>, coverage])} />
-        <button className="link-button technical-link">查看技术状态与任务记录</button>
-      </section>
+function buildActions(projects: McpProject[]): OpsAction[] {
+  const actions: OpsAction[] = [];
+  projects.filter((project) => (project.unreviewedCount ?? 0) >= 8000).sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0)).forEach((project) => actions.push({ priority: "P1", project: project.name, signal: `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)} 条作业未点评`, suggestion: "核对点评分工、批量反馈机制和优先任务覆盖", basis: "searchVisibleActivitySubmissions" }));
+  projects.filter((project) => project.qaOpen >= 1000).sort((a, b) => b.qaOpen - a.qaOpen).forEach((project) => actions.push({ priority: "P1", project: project.name, signal: `${formatInteger(project.qaOpen)} 条问答待回答`, suggestion: "核对答疑排班、集中答疑入口和状态回写机制", basis: "searchActivityQa" }));
+  projects.filter((project) => (project.unreviewedCount ?? 0) >= 3000 && (project.unreviewedCount ?? 0) < 8000).sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0)).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: `${formatInteger(project.unreviewedCount ?? 0)} 条作业未点评`, suggestion: "抽查关键任务点评覆盖，确认是否需要集中反馈", basis: "searchVisibleActivitySubmissions" }));
+  projects.filter((project) => daysRemaining(project) <= 7).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: `${daysRemaining(project)} 天后结束`, suggestion: `围绕“${project.nextMilestone}”安排收尾提醒`, basis: "activityList + searchActivityTasks" }));
+  projects.filter((project) => project.isFull).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: "报名状态为已满", suggestion: "确认满额后的候补、入群与开营承接是否完整", basis: "activityList" }));
+  projects.filter((project) => project.outputCountAtBoundary).forEach((project) => actions.push({ priority: "P3", project: project.name, signal: "产出数正好为 10,000", suggestion: "复核 MCP 查询是否存在总数边界，避免低估实际产出", basis: "searchActivityOutputs" }));
+  projects.filter((project) => project.qaPartialResults).forEach((project) => actions.push({ priority: "P3", project: project.name, signal: "问答端点返回部分结果", suggestion: "补拉问答聚合或在运营判断中保留数据缺口", basis: "searchActivityQa" }));
+  return actions;
+}
+
+function ActionsView({ ops }: { ops: McpOpsSnapshot }) {
+  const actions = useMemo(() => buildActions(ops.projects), [ops.projects]);
+  return <div className="page-stack">
+    <MetricGrid metrics={[
+      ["建议行动", formatInteger(actions.length), "blue", "自动生成，人工确认"],
+      ["P1 高压项", formatInteger(actions.filter((item) => item.priority === "P1").length), "red", "点评与答疑"],
+      ["未点评总量", formatInteger(sum(ops.projects, "unreviewedCount")), "orange", "导师点评状态"],
+      ["临期项目", formatInteger(ops.projects.filter((item) => daysRemaining(item) <= 7).length), "orange", "7 天内结束"],
+      ["数据质量项", formatInteger(actions.filter((item) => item.priority === "P3").length), "purple", "需核对查询口径"],
+    ]} />
+    <section className="boundary-banner"><strong>这是建议，不是自动指令</strong><span>所有动作都由聚合指标触发；负责人、截止时间和实际执行状态尚未从 MCP 获得。</span></section>
+    <Card><h2>行动队列</h2><DataTable headers={["优先级", "项目", "信号", "建议动作", "依据"]} rows={actions.map((item) => [<Tag key={`${item.project}-${item.signal}`} tone={item.priority === "P1" ? "red" : item.priority === "P2" ? "orange" : "blue"}>{item.priority}</Tag>, item.project, item.signal, item.suggestion, item.basis])} /></Card>
+  </div>;
+}
+
+function SnapshotView({ ops }: { ops: McpOpsSnapshot }) {
+  return <div className="page-stack">
+    <MetricGrid metrics={[
+      ["快照时间", formatDate(ops.retrievedAt), "green", "本次 MCP 拉取"],
+      ["上游数据时间", formatDate(ops.dataAsOf), "blue", "项目间可能不同"],
+      ["产出增量", `+${formatInteger(ops.snapshotComparison.outputDelta)}`, "green", `较 ${formatDate(ops.snapshotComparison.previousRetrievedAt)}`],
+      ["建议节点已过", formatInteger(ops.taskSchedule.suggestedFinishElapsed), "orange", "不是成员逾期数"],
+      ["建议节点未到", formatInteger(ops.taskSchedule.suggestedFinishUpcoming), "purple", ops.taskSchedule.allOpenAtRetrievedAt ? `${formatInteger(ops.taskSchedule.total)} 个任务均在开放窗` : "部分任务开放状态待核对"],
+      ["历史期数", formatInteger(ops.historicalPeriodCount), "gold", "activityList 时间轴"],
+    ]} />
+    <div className="two-col equal-cols">
+      <Card><h2>本次项目快照</h2><InfoRows rows={[
+        ["报名人数", formatInteger(sum(ops.projects, "joinCount"))],
+        ["审核可见产出", formatInteger(sum(ops.projects, "outputCount"))],
+        ["已点评作业", formatInteger(sum(ops.projects, "reviewedCount"))],
+        ["未点评作业", formatInteger(sum(ops.projects, "unreviewedCount"))],
+        ["任务定义", formatInteger(sum(ops.projects, "taskCount"))],
+        ["可见问答", formatInteger(sum(ops.projects, "qaTotal"))],
+        ["待回答状态", formatInteger(sum(ops.projects, "qaOpen"))],
+        ["已解决状态", formatInteger(sum(ops.projects, "qaResolved"))],
+      ]} /></Card>
+      <Card><h2>近 8 期项目数量</h2><TrendChart data={ops.recentTimeline.map((item) => ({ label: item.label, value: item.projects }))} /></Card>
     </div>
-  );
+    <div className="two-col equal-cols">
+      <Card><h2>任务节奏</h2><CompareBars rows={[
+        { label: "建议节点已过", value: ops.taskSchedule.suggestedFinishElapsed, max: Math.max(1, ops.taskSchedule.total), display: `${ops.taskSchedule.suggestedFinishElapsed}/${ops.taskSchedule.total}` },
+        { label: "建议节点未到", value: ops.taskSchedule.suggestedFinishUpcoming, max: Math.max(1, ops.taskSchedule.total), display: `${ops.taskSchedule.suggestedFinishUpcoming}/${ops.taskSchedule.total}` },
+      ]} /><p className="card-note">表示任务配置中的建议完成时间，不代表成员已完成或逾期。</p></Card>
+      <Card><h2>手册覆盖</h2><InfoRows rows={[
+        ["目录节点", formatInteger(ops.manualCoverage.tocCount)],
+        ["可读正文节点", formatInteger(ops.manualCoverage.readableCount)],
+        ["覆盖项目", `${ops.projects.length} / ${ops.projects.length}`],
+        ["正文覆盖率", `${((ops.manualCoverage.readableCount / Math.max(1, ops.manualCoverage.tocCount)) * 100).toFixed(1)}%`],
+      ]} /></Card>
+    </div>
+    <Card><h2>逐项目数据新鲜度</h2><DataTable headers={["项目", "上游数据时间", "最近审核可见提交", "手册正文", "状态"]} rows={ops.projects.map((project) => [project.name, formatDate(project.dataAsOf), formatDate(project.lastSubmissionAt), `${formatInteger(project.manualReadableCount ?? 0)} / ${formatInteger(project.manualTocCount ?? 0)}`, <ProjectQualityTag key={project.id} project={project} />])} /></Card>
+    <section className="boundary-banner"><strong>趋势说明</strong><span>当前只有单次正式运营快照，不能补造逐日趋势。后续每天保存同一组 MCP 指标后，才会形成真实日变化。</span></section>
+  </div>;
 }
 
-function EmptyPanel({ title, text }: { title: string; text: string }) {
-  return <div className="page-stack"><Card><div className="empty-state"><h2>{title}</h2><p>{text}</p></div></Card></div>;
+function CompareView({ ops }: { ops: McpOpsSnapshot }) {
+  const [type, setType] = useState("全部类型");
+  const [platform, setPlatform] = useState("全部方向");
+  const types = [...new Set(ops.projects.map((project) => project.type))];
+  const platforms = [...new Set(ops.projects.flatMap((project) => project.platforms))];
+  const projects = ops.projects.filter((project) => (type === "全部类型" || project.type === type) && (platform === "全部方向" || project.platforms.includes(platform)));
+
+  return <div className="page-stack">
+    <div className="filter-bar"><select value={type} onChange={(event) => setType(event.target.value)}><option>全部类型</option>{types.map((item) => <option key={item}>{item}</option>)}</select><select value={platform} onChange={(event) => setPlatform(event.target.value)}><option>全部方向</option>{platforms.map((item) => <option key={item}>{item}</option>)}</select><span className="filter-result">当前显示 {projects.length} 个项目</span></div>
+    <Card><h2>项目横向对比</h2><DataTable headers={["项目", "方向", "报名", "产出", "未点评", "点评覆盖", "任务", "待回答", "百人待回答", "剩余天数"]} rows={projects.map((project) => [project.name, project.platforms.join(" / "), formatInteger(project.joinCount), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, `${reviewCoverage(project).toFixed(2)}%`, project.taskCount, project.qaPartialResults ? `≥${formatInteger(project.qaOpen)}` : formatInteger(project.qaOpen), openQaPerHundred(project).toFixed(1), daysRemaining(project)])} /></Card>
+    <div className="three-col">
+      <Card><h2>作业密度</h2><BarList items={[...projects].sort((a, b) => outputDensity(b) - outputDensity(a)).map((project) => ({ name: project.name, value: outputDensity(project) }))} format={(value) => value.toFixed(2)} /></Card>
+      <Card><h2>点评覆盖</h2><BarList items={[...projects].sort((a, b) => reviewCoverage(b) - reviewCoverage(a)).map((project) => ({ name: project.name, value: reviewCoverage(project) }))} format={(value) => `${value.toFixed(2)}%`} /></Card>
+      <Card><h2>百人待回答</h2><BarList items={[...projects].sort((a, b) => openQaPerHundred(b) - openQaPerHundred(a)).map((project) => ({ name: project.name, value: openQaPerHundred(project) }))} format={(value) => value.toFixed(1)} /></Card>
+    </div>
+  </div>;
 }
 
-function MetricGrid({ metrics, compact = false }: { metrics: [string, string, string][]; compact?: boolean }) {
-  return <section className={`metric-band ${compact ? "compact" : ""}`}>{metrics.map(([label, value, tone]) => {
-    const isTextValue = /[\u4e00-\u9fa5]/.test(value) || value.length > 4;
-    return <div className={`metric-item ${tone}`} key={label}><small>{label}</small><strong className={isTextValue ? "text-value" : ""}>{value}</strong></div>;
-  })}</section>;
+function DataScopeView({ ops }: { ops: McpOpsSnapshot }) {
+  return <div className="page-stack">
+    <MetricGrid metrics={[
+      ["数据源", "生财 MCP", "green", "唯一业务数据源"],
+      ["项目范围", ops.label, "gold", `${ops.projects.length} 个项目`],
+      ["个人信息", "不保存", "blue", "无成员标识和原文"],
+      ["群聊数据", "未使用", "orange", "ZIP 同步已关闭"],
+    ]} />
+    <div className="two-col equal-cols">
+      <Card className="source-checks-card"><h2>MCP 工具健康</h2><DataTable headers={["工具", "状态", "面板用途"]} rows={ops.sourceChecks.map((item) => [item.tool, <Tag key={item.tool} tone={item.status === "正常" ? "green" : "orange"}>{item.status}</Tag>, item.scope])} /></Card>
+      <Card><h2>指标定义</h2><InfoRows rows={[
+        ["报名人数", "activityList 返回的 joinCnt"],
+        ["审核可见产出", "searchActivityOutputs / 可见作业接口返回的任务制作业总数"],
+        ["已点评 / 未点评", "searchVisibleActivitySubmissions 的导师点评状态，不是内容审核状态"],
+        ["人均作业密度", "审核可见产出 ÷ 报名人数，不是完成率"],
+        ["待回答问答", "searchActivityQa 中 questionStatus=1"],
+        ["已解决问答", "searchActivityQa 中 questionStatus=2"],
+        ["手册正文节点", "activityManualToc 中 hasContent=true 的节点数，不是阅读率"],
+        ["建议节点已过", "任务建议完成时间已过，不是成员逾期或未完成"],
+        ["剩余天数", "按北京时间日历日计算到项目结束日期"],
+      ]} /></Card>
+    </div>
+    <Card><h2>公开边界</h2><div className="boundary-grid"><Boundary title="允许展示" text="项目名称、类型、方向、目标、报名数、任务数、作业与点评聚合、问答状态、手册覆盖、时间节点和聚合建议。" /><Boundary title="不进入网站" text="成员身份、memberRef、作业原文、问答原文、联系方式、群聊、ZIP、证据编号和未经确认的个人好事。" /><Boundary title="当前不能判断" text="独立提交人数、完课率、内容质量、GMV、转化、答疑 SLA、真实好事映射和成员学习进度。" /></div></Card>
+  </div>;
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`card ${className}`}>{children}</section>;
+function ProjectTable({ projects }: { projects: McpProject[] }) {
+  return <DataTable headers={["项目", "类型", "报名", "产出", "未点评", "待回答", "下一节点", "剩余"]} rows={projects.map((project) => [<div className="project-name-cell" key={`${project.id}-name`}><Image src={project.avatar} alt="" width={32} height={32} unoptimized /><span><b>{project.name}</b><small>{project.platforms.join(" / ")}</small></span></div>, project.type, formatInteger(project.joinCount), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, project.qaPartialResults ? `≥${formatInteger(project.qaOpen)}` : formatInteger(project.qaOpen), <span className="milestone-cell" key={`${project.id}-milestone`}>{project.nextMilestone}<small>{formatDate(project.nextDueAt)}</small></span>, `${daysRemaining(project)} 天`])} />;
 }
+
+function MetricGrid({ metrics, compact = false }: { metrics: [string, string, string, string?][]; compact?: boolean }) {
+  return <section className={`metric-band mcp-metrics ${compact ? "compact" : ""}`}>{metrics.map(([label, value, tone, note]) => <div className={`metric-item ${tone}`} key={label}><small>{label}</small><strong className={/[\u4e00-\u9fa5]/.test(value) || value.length > 8 ? "text-value" : ""}>{value}</strong>{note ? <em>{note}</em> : null}</div>)}</section>;
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section>; }
 
 function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
-  return <table className="data-table"><thead><tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody></table>;
+  if (!rows.length) return <div className="empty-state"><p>当前筛选条件下暂无数据。</p></div>;
+  return <div className="table-scroll"><table className="data-table"><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
 }
 
-function GoodNewsTable({ goods, onSelect, selected }: { goods: GoodNews[]; onSelect?: (item: GoodNews) => void; selected?: string }) {
-  return <DataTable headers={["时间", "项目/群组", "船员", "原文摘要", "好事类型", "可信度", "证据", "跟进"]} rows={goods.map((g) => [
-    g.time, `${g.project} ${g.group}`, g.sailor, <button className={`row-button ${selected === g.good_news_id ? "selected" : ""}`} onClick={() => onSelect?.(g)} key={g.good_news_id}>{g.summary}</button>, <Tag key={`${g.good_news_id}-type`} tone="gold">{g.type}</Tag>, <Confidence key={`${g.good_news_id}-c`} value={g.confidence} />, <a key={`${g.good_news_id}-e`} href="/evidence">{g.evidence_ids[0]}</a>, <Tag key={`${g.good_news_id}-s`} tone={g.status.includes("待") ? "orange" : "green"}>{g.status}</Tag>
-  ])} />;
+function Tag({ children, tone = "green" }: { children: React.ReactNode; tone?: string }) { return <span className={`tag ${tone}`}>{children}</span>; }
+
+function ProjectQualityTag({ project }: { project: McpProject }) {
+  if (project.outputCountAtBoundary) return <Tag tone="orange">产出为下限</Tag>;
+  if (project.qaPartialResults) return <Tag tone="orange">问答部分结果</Tag>;
+  return <Tag tone="green">聚合完整</Tag>;
 }
 
-function GoodNewsDetail({ item }: { item: GoodNews }) {
-  return <Card><h2>好事详情</h2><h3>原文摘要</h3><p>{item.summary}</p><h3>识别结果</h3><p>{item.type}</p><div className="split"><span>证据编号<br /><b>{item.evidence_ids.join("、")}</b></span><span>可信度<br /><b>{item.confidence}%</b> <Confidence value={item.confidence} /></span></div><h3>运营建议</h3><p>联系船员补充成交截图，可沉淀为案例</p><div className="button-row bottom"><button className="ghost">标记已核实</button><button>创建跟进行动</button></div></Card>;
+function BarList({ items, format }: { items: { name: string; value: number }[]; format: (value: number) => string }) {
+  const max = Math.max(1, ...items.map((item) => item.value));
+  return <div className="bar-list mcp-bar-list">{items.map((item) => <div className="bar-row" key={item.name}><span title={item.name}>{item.name}</span><div className="bar-track"><i style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }} /></div><b>{format(item.value)}</b></div>)}</div>;
 }
 
-function ActionGroup({ title, actions, onSelect }: { title: string; actions: Action[]; onSelect: (action: Action) => void }) {
-  return <div className="action-group"><h3>{title} <span>{actions.length}</span></h3><DataTable headers={["优先级", "项目", "问题", "建议动作", "来源", "负责人", "截止时间", "状态"]} rows={actions.map((a) => [<Tag key={a.action_id} tone={a.priority === "P1" ? "red" : a.priority === "P2" ? "orange" : "mint"}>{a.priority}</Tag>, a.project, <button key={`${a.action_id}-i`} className="row-button" onClick={() => onSelect(a)}>{a.issue}</button>, a.suggestion, <Tag key={`${a.action_id}-src`} tone="purple">{a.source}</Tag>, a.owner, a.due, <Tag key={`${a.action_id}-s`} tone="orange">{a.status}</Tag>])} /></div>;
+function TrendChart({ data }: { data: { label: string; value: number }[] }) {
+  return <div className="line-chart" role="img" aria-label="历史项目数量趋势"><ResponsiveContainer width="100%" height={190}><RechartsLineChart data={data} margin={{ top: 12, right: 16, left: -20, bottom: 0 }}><CartesianGrid stroke="#ECEFEC" strokeDasharray="4 4" vertical={false} /><XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 11 }} /><YAxis allowDecimals={false} tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 11 }} /><Tooltip contentStyle={{ borderRadius: 6, borderColor: "#E2E6E3" }} /><Line type="monotone" dataKey="value" stroke="#237B69" strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: "#237B69", strokeWidth: 2 }} isAnimationActive={false} /></RechartsLineChart></ResponsiveContainer></div>;
 }
 
-function ActionDetail({ action }: { action: Action }) {
-  return <Card><h2>选中行动详情</h2><InfoList items={[["行动 ID", action.action_id], ["关联项目", action.project], ["关联群组", `${action.project} | ${action.groupName}`], ["关联证据", action.evidence_ids.join("、")], ["问题", action.issue], ["建议动作", action.suggestion], ["负责人", action.owner], ["截止时间", `2025-08-17（今天）`], ["优先级", action.priority], ["来源", action.source], ["状态", action.status]]} /><div className="button-row bottom"><button>标记完成</button><button className="ghost">调整负责人</button></div></Card>;
-}
-
-function FilterBar({ labels, action }: { labels: string[]; action?: string }) {
-  return <div className="filter-bar">{labels.map((label, i) => i === labels.length - 1 && label.includes("搜索") ? <input key={label} placeholder={label} /> : <select key={label}><option>{label}</option></select>)}{action && <button>{action}</button>}</div>;
-}
-
-function Tag({ children, tone = "green" }: { children: React.ReactNode; tone?: string }) {
-  return <span className={`tag ${tone}`}>{children}</span>;
-}
-
-function LineChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
-  return (
-    <div className="line-chart" role="img" aria-label="近 7 天趋势图">
-      <ResponsiveContainer width="100%" height={170}>
-        <RechartsLineChart data={data} margin={{ top: 12, right: 16, left: -20, bottom: 0 }}>
-          <CartesianGrid stroke="#ECEFEC" strokeDasharray="4 4" vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 12 }} />
-          <YAxis tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 12 }} />
-          <Tooltip contentStyle={{ borderRadius: 6, borderColor: "#E2E6E3" }} />
-          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: color, strokeWidth: 2 }} activeDot={{ r: 6 }} isAnimationActive={false} />
-        </RechartsLineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function BarList({ items }: { items: { name: string; count: number }[] }) {
-  const max = Math.max(...items.map((i) => i.count));
-  return <div className="bar-list">{items.map((item) => <div className="bar-row" key={item.name}><span>{item.name}</span><i style={{ width: `${(item.count / max) * 72}%` }} /><b>{item.count}</b></div>)}</div>;
-}
-
-function Confidence({ value }: { value: number }) {
-  return <span className="confidence">{value}%</span>;
-}
-
-function Judgement() {
-  return <div className="judgement"><p><b>今日主线：</b>船员进入集中发布与首轮成交验证阶段</p><p><b>最高风险：</b>2 个低活跃群连续两天无有效反馈</p><p><b>最优先动作：</b>跟进首批出单船员，补充截图与完整过程</p></div>;
-}
-
-function Funnel() {
-  return <div className="funnel">{[["已开始", 268], ["完成作品", 146], ["已发布", 93], ["首次成交", 21]].map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}</div>;
-}
-
-function ProjectMini({ project }: { project: Project }) {
-  return <article><h3>{project.name}</h3><p>{project.summary}</p><Tag tone="mint">{project.status}</Tag><strong>{(project.outputCount || 0).toLocaleString()}</strong><small>审核可见产出</small></article>;
-}
-
-function ActionSummary({ title, text, onClick }: { title: string; text: string; onClick: () => void }) {
-  return <button className="summary-row" onClick={onClick}><b>{title}</b><small>{text}</small><i>›</i></button>;
-}
-
-function Donut({ value, label }: { value: number; label: string }) {
-  return <div className="donut" style={{ background: `conic-gradient(#237B69 ${value * 3.6}deg, #ECEFEC 0)` }}><span>{label}<small>{value}%</small></span></div>;
-}
-
-function Workload() {
-  return <div className="workload">{["航海家_小满 8/10", "航海家_阿泽 7/10", "航海家_可可 4/10", "航海家_大海 2/10"].map((w, i) => <p key={w}><span>{w}</span><i style={{ width: `${80 - i * 18}%` }} /></p>)}</div>;
-}
-
-function SourceList() {
-  return <div className="source-list">{[["航海好事", "4 (50%)"], ["风险异常", "2 (25%)"], ["日报", "1 (12.5%)"], ["群组观察", "1 (12.5%)"]].map(([a, b]) => <p key={a}><span>{a}</span><b>{b}</b></p>)}</div>;
-}
-
-function ReportList({ reports }: { reports: DashboardData["reports"] }) {
-  return <div className="report-list">{reports.map((r) => <article className={r.status === "待确认" ? "active" : ""} key={r.request_id}><b>{r.project}</b><span>{r.date}</span><Tag tone={r.status === "待确认" ? "orange" : "green"}>{r.status}</Tag><small>好事 {r.goodNews}　行动 {r.actions}　覆盖 {r.coverage}</small></article>)}</div>;
-}
-
-function ReportPreview({ report }: { report: DashboardData["reports"][number] }) {
-  return <div className="report-preview"><h3>今日主线</h3><div className="main-line">{report.mainLine}</div><h3>航海好事（3）</h3>{["学员笔记登上小红书热门，单篇曝光 2.1w", "群内促成 3 单成交，客单价 128 元", "学员主动组织打卡活动，参与度提升 40%"].map((x) => <p key={x}>{x}<Tag tone="gold">高</Tag></p>)}<h3>风险与异常（2）</h3><p>8月16日缺少「9群-成长营」数据 <Tag tone="red">数据缺失</Tag></p><h3>运营行动建议（3）</h3><p>补充 9群数据，完善分析 <Tag tone="red">高</Tag></p></div>;
-}
-
-function RankList({ groups, risk = false }: { groups: Group[]; risk?: boolean }) {
-  return <ol className="rank-list">{groups.map((g, i) => <li key={g.group_id}><span>{i + 1}</span><b>{g.project} · {g.group}</b><em>{risk ? g.riskReason ?? "负面情绪上升" : g.messages}</em></li>)}</ol>;
-}
-
-function InfoList({ items }: { items: [string, string][] }) {
-  return <dl className="info-list">{items.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>;
-}
+function SectionHead({ title, note, action, onAction }: { title: string; note: string; action?: string; onAction?: () => void }) { return <div className="section-head"><div><h2>{title}</h2><p>{note}</p></div>{action ? <button className="ghost" onClick={onAction}>{action}</button> : null}</div>; }
+function Signal({ tone, label, value, detail }: { tone: string; label: string; value: string; detail: string }) { return <article className={`signal-item ${tone}`}><small>{label}</small><strong>{value}</strong><p>{detail}</p></article>; }
+function TimelineRow({ label, value, state }: { label: string; value: string; state: string }) { return <div className={`timeline-row ${state}`}><i /><span>{label}</span><b>{value}</b></div>; }
+function Judgement({ label, text }: { label: string; text: string }) { return <article><small>{label}</small><p>{text}</p></article>; }
+function Boundary({ title, text }: { title: string; text: string }) { return <article><h3>{title}</h3><p>{text}</p></article>; }
+function InfoRows({ rows }: { rows: [string, string][] }) { return <dl className="info-rows">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>; }
+function CompareBars({ rows }: { rows: { label: string; value: number; max: number; display: string }[] }) { return <div className="compare-bars">{rows.map((row) => <div key={row.label}><span>{row.label}</span><div className="bar-track"><i style={{ width: `${Math.min(100, (row.value / row.max) * 100)}%` }} /></div><b>{row.display}</b></div>)}</div>; }
+function EmptyState({ title, text }: { title: string; text: string }) { return <div className="page-stack"><Card><div className="empty-state"><h2>{title}</h2><p>{text}</p></div></Card></div>; }

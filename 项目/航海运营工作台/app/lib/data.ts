@@ -1,26 +1,134 @@
-export type Mode = "api";
-export type ProjectId = string;
-export type Project = { project_id: ProjectId; name: string; stage: string; day: number; status: string; risk: "低风险" | "中风险" | "高风险"; summary: string; todayGoodNews: number; actions: number; coverage: string; joinCount?: number; outputCount?: number; platforms?: string[]; type?: string };
-export type GoodNews = { good_news_id: string; project_id: ProjectId; group_id: string; request_id: string; evidence_ids: string[]; time: string; project: string; group: string; sailor: string; summary: string; original: string; type: string; confidence: number; status: string; spreadable: boolean };
-export type Action = { action_id: string; project_id: ProjectId; group_id: string; evidence_ids: string[]; priority: "P1" | "P2" | "P3"; project: string; issue: string; suggestion: string; source: "航海好事" | "风险异常" | "日报" | "群组观察"; owner: string; due: string; status: "待处理" | "进行中" | "待确认" | "已完成"; groupName: string };
-export type Report = { request_id: string; project_id: ProjectId; project: string; date: string; status: "待确认" | "已确认"; goodNews: number; actions: number; coverage: string; raw: number; deduped: number; updatedAt: string; dataStatus: string; mainLine: string };
-export type Group = { group_id: string; project_id: ProjectId; project: string; group: string; messages: number; interactions: number; questions: number; leads: number; status: "高活跃" | "正常" | "低活跃" | "无互动"; dataStatus: "已覆盖" | "未覆盖"; riskReason?: string };
-export type Evidence = { evidence_id: string; source: "群聊原文" | "截图" | "日报" | "飞书表格" | "运营备注"; project_id: ProjectId; group_id: string; request_id: string; project: string; group: string; summary: string; related: string; trust: "已核实" | "待核实" | "存疑"; time: string; raw: string; good_news_id?: string; action_id?: string };
-export type DashboardData = { mode: Mode; date: string; projects: Project[]; goodNews: GoodNews[]; actions: Action[]; reports: Report[]; groups: Group[]; evidence: Evidence[]; trends: { date: string; goodNews: number; messages: number; interactions: number; activeGroups: number; lowGroups: number }[]; topics: { name: string; count: number }[]; snapshot?: { records: number; groups: number; detected: number; candidates: number; published: number; updatedAt: string | null; reviewedAt: string | null; goodNewsBreakdown: { name: string; count: number }[] } };
-export type DashboardSnapshot = { ok: boolean; records: number; groups: number; date_range: { start: string; end: string } | null; good_news_detected?: number; good_news_candidates: number; good_news_breakdown?: { name: string; count: number }[]; good_news_reviewed_at?: string | null; public_publishable: number; updated_at: string | null; daily_trends?: { date: string; messages: number; active_groups: number }[]; active_groups?: { group: string; messages: number }[]; project_overview?: { title?: string; summary?: string; coverage?: string }; aggregate_report?: { title?: string; main_line?: string; data_status?: string }; scys_projects?: { id: string; name: string; type: string; platforms: string[]; target: string; status: string; joinCount: number; outputCount: number }[]; scys_updated_at?: string | null };
+export type McpProject = {
+  id: string;
+  name: string;
+  type: string;
+  platforms: string[];
+  target: string;
+  status: string;
+  statusCode: number;
+  isFull: boolean;
+  joinCount: number;
+  stock: number;
+  enrollStart: string;
+  enrollEnd: string;
+  sailAt: string;
+  endAt: string;
+  avatar: string;
+  taskCount: number;
+  outputCount: number;
+  outputCountAtBoundary?: boolean;
+  reviewedCount?: number;
+  unreviewedCount?: number;
+  manualTocCount?: number;
+  manualReadableCount?: number;
+  qaTotal: number;
+  qaOpen: number;
+  qaResolved: number;
+  qaPartialResults?: boolean;
+  currentMilestone: string;
+  currentDueAt: string;
+  nextMilestone: string;
+  nextDueAt: string;
+  lastSubmissionAt: string;
+  dataAsOf: string;
+};
 
-export function dashboardFromSnapshot(snapshot: DashboardSnapshot): DashboardData {
-  const date = snapshot.date_range ? `${snapshot.date_range.start} - ${snapshot.date_range.end}` : "暂无数据";
-  const projectName = snapshot.project_overview?.title || "航海项目总览";
-  const coverage = snapshot.project_overview?.coverage || `${snapshot.groups} / ${snapshot.groups}`;
-  return {
-    mode: "api", date,
-    projects: snapshot.scys_projects?.length ? snapshot.scys_projects.map((project) => ({ project_id: `scys-${project.id}`, name: project.name, stage: project.type, day: snapshot.daily_trends?.length || 0, status: project.status, risk: "低风险", summary: project.target, todayGoodNews: 0, actions: 0, coverage: "生财 MCP", joinCount: project.joinCount, outputCount: project.outputCount, platforms: project.platforms, type: project.type })) : [{ project_id: "proj_planet_01", name: projectName, stage: "聚合分析", day: snapshot.daily_trends?.length || 0, status: snapshot.records ? "已完成聚合" : "暂无数据", risk: "中风险", summary: snapshot.project_overview?.summary || "暂无可展示数据", todayGoodNews: snapshot.good_news_candidates, actions: 0, coverage }],
-    goodNews: [], actions: [], evidence: [],
-    reports: snapshot.records ? [{ request_id: "PUBLIC-LATEST", project_id: "proj_planet_01", project: projectName, date, status: "待确认", goodNews: snapshot.good_news_candidates, actions: 0, coverage: coverage.replaceAll(" ", ""), raw: snapshot.records, deduped: snapshot.records, updatedAt: snapshot.updated_at || "-", dataStatus: snapshot.aggregate_report?.data_status || "聚合完成", mainLine: snapshot.aggregate_report?.main_line || "已完成匿名聚合分析" }] : [],
-    groups: (snapshot.active_groups || []).map((item, index) => ({ group_id: `AGG-${String(index + 1).padStart(2, "0")}`, project_id: "proj_planet_01", project: projectName, group: item.group, messages: item.messages, interactions: 0, questions: 0, leads: 0, status: "高活跃", dataStatus: "已覆盖" })),
-    trends: (snapshot.daily_trends || []).map((item) => ({ date: item.date, goodNews: 0, messages: item.messages, interactions: 0, activeGroups: item.active_groups, lowGroups: 0 })),
-    topics: [{ name: "待核验好事线索", count: snapshot.good_news_candidates }, { name: "已覆盖群组", count: snapshot.groups }, { name: "分析天数", count: snapshot.daily_trends?.length || 0 }],
-    snapshot: { records: snapshot.records, groups: snapshot.groups, detected: snapshot.good_news_detected || snapshot.good_news_candidates, candidates: snapshot.good_news_candidates, published: snapshot.public_publishable, updatedAt: snapshot.updated_at, reviewedAt: snapshot.good_news_reviewed_at || null, goodNewsBreakdown: snapshot.good_news_breakdown || [] },
+export type McpOpsSnapshot = {
+  source: string;
+  sourceMode: "scys_mcp_only";
+  label: string;
+  retrievedAt: string;
+  dataAsOf: string;
+  historicalPeriodCount: number;
+  taskSchedule: {
+    total: number;
+    suggestedFinishElapsed: number;
+    suggestedFinishUpcoming: number;
+    allOpenAtRetrievedAt: boolean;
   };
+  manualCoverage: { tocCount: number; readableCount: number };
+  snapshotComparison: {
+    previousRetrievedAt: string;
+    joinDelta: number;
+    outputDelta: number;
+    qaOpenDelta: number;
+  };
+  goodNewsMapping: { available: boolean; reason: string };
+  recentTimeline: { label: string; projects: number }[];
+  sourceChecks: { tool: string; status: string; scope: string }[];
+  projects: McpProject[];
+};
+
+export type DashboardResponse = {
+  ok: boolean;
+  source_mode: string;
+  updated_at: string | null;
+  ops: McpOpsSnapshot | null;
+  health_status?: "healthy" | "stale" | "degraded";
+  health_issues?: string[];
+  note?: string;
+};
+
+export const EMPTY_OPS: McpOpsSnapshot = {
+  source: "生财有术 MCP",
+  sourceMode: "scys_mcp_only",
+  label: "等待同步",
+  retrievedAt: "",
+  dataAsOf: "",
+  historicalPeriodCount: 0,
+  taskSchedule: { total: 0, suggestedFinishElapsed: 0, suggestedFinishUpcoming: 0, allOpenAtRetrievedAt: false },
+  manualCoverage: { tocCount: 0, readableCount: 0 },
+  snapshotComparison: { previousRetrievedAt: "", joinDelta: 0, outputDelta: 0, qaOpenDelta: 0 },
+  goodNewsMapping: { available: false, reason: "等待 MCP 数据。" },
+  recentTimeline: [],
+  sourceChecks: [],
+  projects: [],
+};
+
+export function sum(projects: McpProject[], field: "joinCount" | "outputCount" | "reviewedCount" | "unreviewedCount" | "taskCount" | "qaTotal" | "qaOpen" | "qaResolved" | "manualTocCount" | "manualReadableCount") {
+  return projects.reduce((total, project) => total + (project[field] ?? 0), 0);
+}
+
+export function outputDensity(project: McpProject) {
+  return project.joinCount ? project.outputCount / project.joinCount : 0;
+}
+
+export function openQaPerHundred(project: McpProject) {
+  return project.joinCount ? (project.qaOpen / project.joinCount) * 100 : 0;
+}
+
+export function reviewCoverage(project: McpProject) {
+  const reviewed = project.reviewedCount ?? 0;
+  const counted = reviewed + (project.unreviewedCount ?? 0);
+  return counted ? (reviewed / counted) * 100 : 0;
+}
+
+function shanghaiCalendarDay(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const valueByPart = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return Date.UTC(Number(valueByPart.year), Number(valueByPart.month) - 1, Number(valueByPart.day));
+}
+
+export function daysRemaining(project: McpProject, now = new Date()) {
+  const endAt = new Date(project.endAt);
+  if (Number.isNaN(endAt.getTime()) || Number.isNaN(now.getTime())) return 0;
+
+  return Math.max(0, Math.round((shanghaiCalendarDay(endAt) - shanghaiCalendarDay(now)) / 86400000));
+}
+
+export function formatDate(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
+export function formatInteger(value: number) {
+  return new Intl.NumberFormat("zh-CN").format(value);
 }
