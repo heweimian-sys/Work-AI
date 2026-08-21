@@ -1,6 +1,7 @@
 param(
   [string]$JsonPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "examples\scys-ops-dashboard.public.json"),
-  [switch]$ValidateOnly
+  [switch]$ValidateOnly,
+  [switch]$Local
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,9 +35,10 @@ ON CONFLICT(snapshot_id) DO UPDATE SET
 
   Push-Location $projectRoot
   try {
-    npx wrangler d1 execute voyage-ops-workbench-db --remote --file $migration --config wrangler.toml
+    $deploymentTarget = if ($Local) { "--local" } else { "--remote" }
+    npx wrangler d1 execute voyage-ops-workbench-db $deploymentTarget --file $migration --config wrangler.toml
     if ($LASTEXITCODE -ne 0) { throw "MCP-only D1 table initialization failed" }
-    npx wrangler d1 execute voyage-ops-workbench-db --remote --file $temporarySql --config wrangler.toml
+    npx wrangler d1 execute voyage-ops-workbench-db $deploymentTarget --file $temporarySql --config wrangler.toml
     if ($LASTEXITCODE -ne 0) { throw "MCP project aggregate sync failed" }
   } finally {
     Pop-Location

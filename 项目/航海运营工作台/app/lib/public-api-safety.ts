@@ -33,6 +33,57 @@ export type PublicMcpProject = {
   dataAsOf: string;
 };
 
+export type PublicTaskWindow = {
+  projectId: string;
+  taskId: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  suggestedFinishAt: string;
+  sourceComplete: boolean;
+};
+
+export type PublicQaTopicMetric = {
+  topic: string;
+  recent7d: number;
+  awaitingFirstReply: number;
+  awaitingFirstReply48h: number;
+};
+
+export type PublicQaProjectMetric = {
+  projectId: string;
+  upstreamTotal: number;
+  fetched: number;
+  complete: boolean;
+  partialResults: boolean;
+  dataAsOf: string;
+  new24h: number;
+  new24hUnanswered: number;
+  awaitingFirstReply: number;
+  awaitingFirstReply48h: number;
+  answeredButOpen: number;
+  oldestUnansweredAt: string;
+  topicBuckets: PublicQaTopicMetric[];
+};
+
+export type PublicOperationsSnapshot = {
+  taskWindows: PublicTaskWindow[];
+  qaProjects: PublicQaProjectMetric[];
+  goodNews: {
+    candidateCount: number;
+    verifiedCount: number;
+    stages: { stage: string; count: number }[];
+    note: string;
+  };
+  collection: {
+    taskDefinitionsComplete: boolean;
+    qaRecordsComplete: boolean;
+    qaClassifierVersion: string;
+    submissionTrendStatus: "unavailable" | "partial" | "complete";
+    submissionTrendReason: string;
+  };
+};
+
 export type PublicMcpOpsSnapshot = {
   source: string;
   sourceMode: "scys_mcp_only";
@@ -57,6 +108,7 @@ export type PublicMcpOpsSnapshot = {
   recentTimeline: { label: string; projects: number }[];
   sourceChecks: { tool: string; status: string; scope: string }[];
   projects: PublicMcpProject[];
+  operations: PublicOperationsSnapshot;
 };
 
 export type McpHealthStatus = "healthy" | "stale" | "degraded";
@@ -173,6 +225,135 @@ function projectSourceChecks(value: unknown) {
   });
 }
 
+function projectTaskWindows(value: unknown): PublicTaskWindow[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const projectId = stringValue(item.projectId);
+    const taskId = stringValue(item.taskId);
+    const title = stringValue(item.title);
+    if (!projectId || !taskId || !title) return [];
+    return [{
+      projectId,
+      taskId,
+      title,
+      startAt: stringValue(item.startAt),
+      endAt: stringValue(item.endAt),
+      suggestedFinishAt: stringValue(item.suggestedFinishAt),
+      sourceComplete: item.sourceComplete === true,
+    }];
+  });
+}
+
+function projectQaTopics(value: unknown): PublicQaTopicMetric[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const topic = stringValue(item.topic);
+    if (!QA_TOPIC_ALLOWLIST.has(topic)) return [];
+    return [{
+      topic,
+      recent7d: numberValue(item.recent7d),
+      awaitingFirstReply: numberValue(item.awaitingFirstReply),
+      awaitingFirstReply48h: numberValue(item.awaitingFirstReply48h),
+    }];
+  });
+}
+
+const QA_TOPIC_ALLOWLIST = new Set([
+  "工具与账号",
+  "技术报错与部署",
+  "选题与内容制作",
+  "流量与数据验证",
+  "变现与平台运营",
+  "任务与提交规则",
+  "其他待归类",
+]);
+
+function hasOnlyAllowedQaTopics(value: unknown) {
+  if (!isRecord(value) || !Array.isArray(value.qaProjects)) return false;
+  return value.qaProjects.every((project) => {
+    if (!isRecord(project) || !Array.isArray(project.topicBuckets)) return false;
+    return project.topicBuckets.every((item) => isRecord(item) && QA_TOPIC_ALLOWLIST.has(stringValue(item.topic)));
+  });
+}
+
+function projectQaProjects(value: unknown): PublicQaProjectMetric[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const projectId = stringValue(item.projectId);
+    if (!projectId) return [];
+    return [{
+      projectId,
+      upstreamTotal: numberValue(item.upstreamTotal),
+      fetched: numberValue(item.fetched),
+      complete: item.complete === true,
+      partialResults: item.partialResults === true,
+      dataAsOf: stringValue(item.dataAsOf),
+      new24h: numberValue(item.new24h),
+      new24hUnanswered: numberValue(item.new24hUnanswered),
+      awaitingFirstReply: numberValue(item.awaitingFirstReply),
+      awaitingFirstReply48h: numberValue(item.awaitingFirstReply48h),
+      answeredButOpen: numberValue(item.answeredButOpen),
+      oldestUnansweredAt: stringValue(item.oldestUnansweredAt),
+      topicBuckets: projectQaTopics(item.topicBuckets),
+    }];
+  });
+}
+
+const GOOD_NEWS_STAGES = new Set([
+  "候选发现",
+  "待运营看稿",
+  "需船员修改",
+  "运营复看",
+  "待同步精华修改",
+  "后续处理中",
+  "已完成",
+  "本轮不推进",
+]);
+
+function projectGoodNewsStages(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const stage = stringValue(item.stage);
+    if (!GOOD_NEWS_STAGES.has(stage)) return [];
+    return [{ stage, count: numberValue(item.count) }];
+  });
+}
+
+function projectOperations(value: unknown): PublicOperationsSnapshot | null {
+  if (!isRecord(value)
+    || !Array.isArray(value.taskWindows)
+    || !Array.isArray(value.qaProjects)
+    || !isRecord(value.goodNews)
+    || !isRecord(value.collection)
+    || !hasOnlyAllowedQaTopics(value)) return null;
+  const operations = value;
+  const goodNews = operations.goodNews as Record<string, unknown>;
+  const collection = operations.collection as Record<string, unknown>;
+  const trendStatus = stringValue(collection.submissionTrendStatus);
+
+  return {
+    taskWindows: projectTaskWindows(operations.taskWindows),
+    qaProjects: projectQaProjects(operations.qaProjects),
+    goodNews: {
+      candidateCount: numberValue(goodNews.candidateCount),
+      verifiedCount: numberValue(goodNews.verifiedCount),
+      stages: projectGoodNewsStages(goodNews.stages),
+      note: stringValue(goodNews.note),
+    },
+    collection: {
+      taskDefinitionsComplete: collection.taskDefinitionsComplete === true,
+      qaRecordsComplete: collection.qaRecordsComplete === true,
+      qaClassifierVersion: stringValue(collection.qaClassifierVersion),
+      submissionTrendStatus: trendStatus === "partial" || trendStatus === "complete" ? trendStatus : "unavailable",
+      submissionTrendReason: stringValue(collection.submissionTrendReason),
+    },
+  };
+}
+
 export function projectPublicMcpOps(value: unknown): PublicMcpOpsSnapshot | null {
   if (!isRecord(value) || value.sourceMode !== "scys_mcp_only") return null;
 
@@ -186,6 +367,8 @@ export function projectPublicMcpOps(value: unknown): PublicMcpOpsSnapshot | null
       return safeProject ? [safeProject] : [];
     })
     : [];
+  const operations = projectOperations(value.operations);
+  if (!operations) return null;
 
   return {
     source: stringValue(value.source),
@@ -217,6 +400,7 @@ export function projectPublicMcpOps(value: unknown): PublicMcpOpsSnapshot | null
     recentTimeline: projectTimeline(value.recentTimeline),
     sourceChecks: projectSourceChecks(value.sourceChecks),
     projects,
+    operations,
   };
 }
 
@@ -266,6 +450,12 @@ export function assessMcpOpsHealth(
   if (ops.projects.length === 0) issues.push("no_projects");
   if (ops.sourceChecks.length === 0) issues.push("no_source_checks");
   if (failures.length > 0) issues.push("source_check_failed");
+  if (!ops.operations.collection.taskDefinitionsComplete || ops.operations.taskWindows.length === 0) issues.push("incomplete_task_definitions");
+  if (!ops.operations.collection.qaRecordsComplete
+    || (ops.projects.length > 0 && ops.operations.qaProjects.length !== ops.projects.length)
+    || ops.operations.qaProjects.some((item) => !item.complete || item.partialResults || item.fetched !== item.upstreamTotal)) {
+    issues.push("incomplete_qa_records");
+  }
 
   const retrievedAtMs = Date.parse(ops.retrievedAt);
   const hasValidRetrievedAt = Number.isFinite(retrievedAtMs);

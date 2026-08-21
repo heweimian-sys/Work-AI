@@ -1,64 +1,45 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import {
-  CartesianGrid,
-  Line,
-  LineChart as RechartsLineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import {
   DashboardResponse,
   EMPTY_OPS,
   McpOpsSnapshot,
-  McpProject,
-  daysRemaining,
+  QaProjectMetric,
+  TaskWindow,
+  buildProjectDecisions,
   formatDate,
   formatInteger,
-  outputDensity,
-  openQaPerHundred,
-  reviewCoverage,
-  sum,
+  hoursUntil,
+  projectName,
+  qaTotals,
+  tasksDueWithin,
 } from "../lib/data";
 
-type PageKey = "overview" | "project" | "good-news" | "actions" | "reports" | "groups" | "evidence";
+type PageKey = "today" | "project" | "qa" | "good-news" | "actions" | "data";
 
 const NAV: { key: PageKey; label: string; path: string }[] = [
-  { key: "overview", label: "运营总览", path: "/" },
-  { key: "project", label: "项目驾驶舱", path: "/project-dashboard" },
-  { key: "good-news", label: "成果观察", path: "/good-news" },
-  { key: "actions", label: "运营行动", path: "/actions" },
-  { key: "reports", label: "项目快照", path: "/reports" },
-  { key: "groups", label: "项目对比", path: "/groups" },
-  { key: "evidence", label: "数据口径", path: "/evidence" },
+  { key: "today", label: "今日运营", path: "/" },
+  { key: "project", label: "项目作战室", path: "/project-dashboard" },
+  { key: "qa", label: "答疑雷达", path: "/qa-radar" },
+  { key: "good-news", label: "航海好事", path: "/good-news" },
+  { key: "actions", label: "行动建议", path: "/actions" },
+  { key: "data", label: "数据健康", path: "/evidence" },
 ];
 
 const TITLES: Record<PageKey, [string, string]> = {
-  overview: ["运营总览", "本期项目规模、产出、问答与临期事项"],
-  project: ["项目驾驶舱", "逐项目查看节奏、里程碑与运营压力"],
-  "good-news": ["成果观察", "只展示 MCP 可验证的作业产出，不冒充航海好事"],
-  actions: ["运营行动", "把项目指标转成需要人工判断的运营建议"],
-  reports: ["项目快照", "保存当前 MCP 截面，后续逐日形成趋势"],
-  groups: ["项目对比", "按项目、类型与方向比较关键指标"],
-  evidence: ["数据口径", "清楚说明来源、边界、新鲜度和缺失项"],
+  today: ["今日运营", "只看今天需要决定、提醒和跟进的事项"],
+  project: ["项目作战室", "按项目查看真实关卡时间、答疑压力与数据缺口"],
+  qa: ["答疑雷达", "按首答状态和问题年龄识别处理压力"],
+  "good-news": ["航海好事", "MCP 只发现候选，内容结论由运营人工判断"],
+  actions: ["行动建议", "把关卡和答疑信号合并成按风险排序的项目决策清单"],
+  data: ["数据健康", "明确哪些指标能用，哪些仍不可得"],
 };
 
-type OpsAction = {
-  priority: "P1" | "P2" | "P3";
-  project: string;
-  signal: string;
-  suggestion: string;
-  basis: string;
-};
-
-export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey }) {
+export function Workbench({ initialPage = "today" }: { initialPage?: PageKey }) {
   const [page, setPage] = useState<PageKey>(initialPage);
   const [ops, setOps] = useState<McpOpsSnapshot>(EMPTY_OPS);
-  const [loadError, setLoadError] = useState(false);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [healthStatus, setHealthStatus] = useState<DashboardResponse["health_status"]>();
 
   useEffect(() => {
@@ -69,10 +50,19 @@ export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey 
       })
       .then((response) => {
         setOps(response.ops || EMPTY_OPS);
-        setLoadError(!response.ops);
         setHealthStatus(response.health_status);
+        setState(response.ops ? "ready" : "error");
       })
-      .catch(() => setLoadError(true));
+      .catch(() => setState("error"));
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const matched = NAV.find((item) => item.path === window.location.pathname);
+      if (matched) setPage(matched.key);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const navigate = (item: (typeof NAV)[number]) => {
@@ -87,301 +77,219 @@ export function Workbench({ initialPage = "overview" }: { initialPage?: PageKey 
         <nav>{NAV.map((item) => (
           <a className={`nav-item ${item.key === page ? "active" : ""}`} href={item.path} key={item.key} onClick={(event) => { event.preventDefault(); navigate(item); }}>{item.label}</a>
         ))}</nav>
-        <div className="sidebar-note">仅使用生财 MCP<br />项目级安全聚合</div>
+        <div className="sidebar-note">生财 MCP<br />匿名运营聚合</div>
       </aside>
       <section className="workspace">
-        <Topbar ops={ops} page={page} loadError={loadError} healthStatus={healthStatus} />
-        {loadError && !ops.projects.length ? <EmptyState title="MCP 数据暂时无法加载" text="页面会保留明确空状态，不会回退到演示数据。" /> : null}
-        {!loadError || ops.projects.length ? <>
-          {page === "overview" && <Overview ops={ops} go={setPage} />}
-          {page === "project" && <ProjectCockpit ops={ops} />}
-          {page === "good-news" && <ResultsView ops={ops} />}
-          {page === "actions" && <ActionsView ops={ops} />}
-          {page === "reports" && <SnapshotView ops={ops} />}
-          {page === "groups" && <CompareView ops={ops} />}
-          {page === "evidence" && <DataScopeView ops={ops} />}
+        <Topbar ops={ops} page={page} state={state} healthStatus={healthStatus} />
+        {state === "loading" ? <LoadingState /> : null}
+        {state === "error" ? <EmptyState title="运营数据暂时无法加载" text="页面不会回退到演示数据，请稍后检查 MCP 快照和健康接口。" /> : null}
+        {state === "ready" ? <>
+          {page === "today" && <TodayOps ops={ops} go={setPage} />}
+          {page === "project" && <ProjectWarRoom ops={ops} />}
+          {page === "qa" && <QaRadar ops={ops} />}
+          {page === "good-news" && <GoodNewsWorkbench ops={ops} />}
+          {page === "actions" && <ActionLedger ops={ops} />}
+          {page === "data" && <DataHealth ops={ops} />}
         </> : null}
       </section>
     </main>
   );
 }
 
-function Topbar({ ops, page, loadError, healthStatus }: { ops: McpOpsSnapshot; page: PageKey; loadError: boolean; healthStatus?: DashboardResponse["health_status"] }) {
-  const hasPartialResults = ops.sourceChecks.some((check) => check.status.includes("部分"));
-  const syncState = loadError
-    ? "同步异常"
-    : healthStatus === "stale"
-      ? "MCP 快照已陈旧"
-      : hasPartialResults
-        ? "MCP 有部分结果"
-        : ops.retrievedAt
-          ? `MCP 拉取 ${formatDate(ops.retrievedAt)}`
-          : "等待 MCP";
-  return (
-    <header className="topbar">
-      <div><h1>{TITLES[page][0]}</h1><p>{TITLES[page][1]}</p></div>
-      <div className="top-actions">
-        <span className="scope-chip">{ops.label}</span>
-        <span className={`sync-chip ${loadError || healthStatus === "stale" ? "error" : hasPartialResults ? "warn" : ""}`}>{syncState}</span>
-      </div>
-    </header>
-  );
+function Topbar({ ops, page, state, healthStatus }: { ops: McpOpsSnapshot; page: PageKey; state: string; healthStatus?: DashboardResponse["health_status"] }) {
+  const stateLabel = state === "loading" ? "正在读取" : state === "error" ? "同步异常" : healthStatus === "stale" ? "快照已陈旧" : healthStatus === "degraded" ? "数据不完整" : `更新于 ${formatDate(ops.retrievedAt)}`;
+  return <header className="topbar">
+    <div><h1>{TITLES[page][0]}</h1><p>{TITLES[page][1]}</p></div>
+    <div className="top-actions"><span className="scope-chip">{ops.label || "MCP 运营数据"}</span><span className={`sync-chip ${state === "error" || healthStatus === "stale" || healthStatus === "degraded" ? "error" : ""}`}>{stateLabel}</span></div>
+  </header>;
 }
 
-function Overview({ ops, go }: { ops: McpOpsSnapshot; go: (page: PageKey) => void }) {
-  const projects = ops.projects;
-  const joins = sum(projects, "joinCount");
-  const outputs = sum(projects, "outputCount");
-  const qaOpen = sum(projects, "qaOpen");
-  const unreviewed = sum(projects, "unreviewedCount");
-  const endingSoon = projects.filter((project) => daysRemaining(project) <= 7).length;
-  const reviewPressureLeader = [...projects].sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0))[0];
-  const pressureLeader = [...projects].sort((a, b) => b.qaOpen - a.qaOpen)[0];
+function referenceNow() {
+  return new Date();
+}
+
+function taskStatus(task: TaskWindow) {
+  const hours = hoursUntil(task.suggestedFinishAt, referenceNow());
+  if (hours === null) return { label: "时间缺失", tone: "neutral", rank: 5 };
+  if (hours < -72) return { label: "建议日已过", tone: "neutral", rank: 4 };
+  if (hours < 0) return { label: "刚过建议日", tone: "orange", rank: 1 };
+  if (hours <= 24) return { label: "24 小时内", tone: "red", rank: 0 };
+  if (hours <= 72) return { label: "72 小时内", tone: "orange", rank: 2 };
+  return { label: "后续节点", tone: "blue", rank: 3 };
+}
+
+function TodayOps({ ops, go }: { ops: McpOpsSnapshot; go: (page: PageKey) => void }) {
+  const totals = qaTotals(ops);
+  const tasks72h = tasksDueWithin(ops, 72, referenceNow()).sort((a, b) => Date.parse(a.suggestedFinishAt) - Date.parse(b.suggestedFinishAt));
+  const decisions = buildProjectDecisions(ops, referenceNow());
+  const priorityDecisions = decisions.slice(0, 5);
 
   return <div className="page-stack">
     <MetricGrid metrics={[
-      ["本期项目", formatInteger(projects.length), "green", `${ops.historicalPeriodCount} 个历史期数`],
-      ["报名人数", formatInteger(joins), "gold", "activityList 口径"],
-      ["审核可见产出", formatInteger(outputs), "blue", `较上次 +${formatInteger(ops.snapshotComparison.outputDelta)}`],
-      ["未点评作业", formatInteger(unreviewed), "red", "导师点评状态"],
-      ["待回答问答", formatInteger(qaOpen), "red", "MCP 可见状态"],
-      ["7 天内结束", formatInteger(endingSoon), "orange", "需进入收尾节奏"],
+      ["未来 72h 关卡", formatInteger(tasks72h.length), "orange", "按建议完成时间"],
+      ["P1 风险项目", formatInteger(decisions.filter((item) => item.priority === "P1").length), "red", "关卡与答疑合并排序"],
+      ["24h 新问题未首答", formatInteger(totals.new24hUnanswered), "red", "answerCount = 0"],
+      ["超过 48h 未首答", formatInteger(totals.awaitingFirstReply48h), "red", "不是平台待回答状态"],
+      ["待运营看稿", formatInteger(ops.operations.goodNews.stages.find((item) => item.stage === "待运营看稿")?.count || 0), "green", "好事人工台账"],
     ]} />
 
-    <div className="overview-grid mcp-overview-grid">
-      <Card>
-        <SectionHead title="项目运营矩阵" note="排序依据为审核可见产出量" action="打开项目对比" onAction={() => go("groups")} />
-        <ProjectTable projects={[...projects].sort((a, b) => b.outputCount - a.outputCount)} />
+    <section className="decision-strip"><div><b>今天先处理</b><span>同一项目只出现一次，风险分综合 48h 积压、24h 新增未首答和关卡临期信号。</span></div><button onClick={() => go("actions")}>查看全部建议</button></section>
+
+    <div className="ops-grid-main">
+      <Card><SectionHead title="项目决策优先级" note="最多显示 5 个项目；这是只读建议，不伪装成已指派任务" />
+        {priorityDecisions.length ? <div className="action-list">{priorityDecisions.map((decision, index) => <article className="action-row" key={decision.id}>
+          <span className={`priority ${decision.priority.toLowerCase()}`}>{decision.priority}</span>
+          <div><small>{projectName(ops, decision.projectId)} · 风险分 {decision.riskScore}</small><strong>{index + 1}. {decision.title}</strong><p>{decision.signals.join("；")}</p><p className="recommendation">建议：{decision.recommendation}</p></div>
+          <div className="action-meta"><span>{decision.dueAt ? formatDate(decision.dueAt) : "无硬截止"}</span><em>数据 {formatDate(decision.dataAsOf)}</em></div>
+        </article>)}</div> : <EmptyState title="暂无可验证的紧急事项" text="下一次同步后会按真实任务和答疑时效重新计算。" />}
       </Card>
-      <div className="side-stack">
-        <Card><h2>本期关键判断</h2><div className="signal-list">
-          <Signal tone="blue" label="点评压力" value={reviewPressureLeader ? `${reviewPressureLeader.name}：${formatInteger(reviewPressureLeader.unreviewedCount ?? 0)} 未点评` : "等待数据"} detail="点评状态聚合；查询边界项目按下限展示。" />
-          <Signal tone="red" label="答疑压力" value={pressureLeader ? `${pressureLeader.name}：${formatInteger(pressureLeader.qaOpen)} 待回答` : "等待数据"} detail="依据 MCP 问答状态，需要运营确认实际处理机制。" />
-          <Signal tone="orange" label="收尾窗口" value={`${endingSoon} 个项目将在 7 天内结束`} detail="优先检查最终成果任务、提醒节奏与答疑承接。" />
-        </div></Card>
-        <Card><h2>运营动作入口</h2><button className="full" onClick={() => go("actions")}>查看自动建议的行动队列</button><p className="card-note">建议仅基于聚合指标生成，执行前仍需运营人员判断。</p></Card>
-      </div>
+      <Card><SectionHead title="未来 72 小时关卡" note="这是项目节奏节点，不代表成员完成率" />
+        {tasks72h.length ? <TaskCompactList ops={ops} tasks={tasks72h} /> : <EmptyState title="72 小时内没有新节点" text="可在项目作战室查看全部关卡时间。" />}
+      </Card>
     </div>
 
-    <div className="two-col equal-cols">
-      <Card><h2>人均作业密度</h2><BarList items={[...projects].sort((a, b) => outputDensity(b) - outputDensity(a)).map((project) => ({ name: project.name, value: outputDensity(project) }))} format={(value) => value.toFixed(2)} /></Card>
-      <Card><h2>近 8 期项目数量</h2><TrendChart data={ops.recentTimeline.map((item) => ({ label: item.label, value: item.projects }))} /></Card>
-    </div>
+    <Card><SectionHead title="项目答疑变化" note="只展示最近新增与未首答，不再使用失真的平台“待回答总量”" action="查看答疑雷达" onAction={() => go("qa")} />
+      <QaProjectTable ops={ops} rows={[...ops.operations.qaProjects].sort((a, b) => b.awaitingFirstReply48h - a.awaitingFirstReply48h || b.new24hUnanswered - a.new24hUnanswered)} />
+    </Card>
   </div>;
 }
 
-function ProjectCockpit({ ops }: { ops: McpOpsSnapshot }) {
+function ProjectWarRoom({ ops }: { ops: McpOpsSnapshot }) {
   const [selectedId, setSelectedId] = useState(ops.projects[0]?.id || "");
   const project = ops.projects.find((item) => item.id === selectedId) || ops.projects[0];
-  if (!project) return <EmptyState title="暂无项目" text="MCP 返回项目后会显示驾驶舱。" />;
-  const remaining = daysRemaining(project);
+  if (!project) return <EmptyState title="暂无项目" text="MCP 返回项目后会显示作战室。" />;
+  const tasks = ops.operations.taskWindows.filter((task) => task.projectId === project.id).sort((a, b) => Date.parse(a.suggestedFinishAt) - Date.parse(b.suggestedFinishAt));
+  const qa = ops.operations.qaProjects.find((item) => item.projectId === project.id);
 
   return <div className="page-stack">
     <div className="project-selector"><label>当前项目</label><select value={project.id} onChange={(event) => setSelectedId(event.target.value)}>{ops.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
-    <section className="project-hero-band">
-      <Image src={project.avatar} alt="" width={80} height={80} unoptimized />
-      <div><div className="tag-row"><Tag tone="green">{project.status}</Tag><Tag tone="blue">{project.type}</Tag>{project.platforms.map((platform) => <Tag key={platform} tone="gold">{platform}</Tag>)}</div><h2>{project.name}</h2><p>{project.target}</p></div>
-      <div className="hero-days"><strong>{remaining}</strong><span>天后结束</span></div>
-    </section>
+    <section className="war-room-header"><div><div className="tag-row"><Tag tone="green">{project.status}</Tag>{project.platforms.map((platform) => <Tag key={platform} tone="blue">{platform}</Tag>)}</div><h2>{project.name}</h2><p>{project.target}</p></div><div className="war-room-dates"><span>项目结束</span><strong>{formatDate(project.endAt)}</strong></div></section>
     <MetricGrid compact metrics={[
-      ["报名人数", formatInteger(project.joinCount), "gold", project.isFull ? "报名已满" : "MCP 报名口径"],
-      ["审核可见产出", `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, "blue", "不等于独立人数"],
-      ["未点评作业", `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, "red", "导师点评状态"],
-      ["点评覆盖", `${reviewCoverage(project).toFixed(2)}%`, "orange", project.outputCountAtBoundary ? "查询边界，仅供参考" : "已点评 ÷ 点评状态总量"],
-      ["人均作业密度", outputDensity(project).toFixed(2), "green", "产出数 ÷ 报名数"],
-      ["任务数", formatInteger(project.taskCount), "purple", "任务定义"],
-      ["待回答问答", formatInteger(project.qaOpen), "red", `${openQaPerHundred(project).toFixed(1)} / 百人`],
-      ["手册正文节点", formatInteger(project.manualReadableCount ?? 0), "green", `目录共 ${formatInteger(project.manualTocCount ?? 0)} 节点`],
+      ["关卡定义", formatInteger(tasks.length), "blue", ops.operations.collection.taskDefinitionsComplete ? "完整读取" : "可能不完整"],
+      ["24h 新问题", formatInteger(qa?.new24h || 0), "blue", "按创建时间"],
+      ["新问题未首答", formatInteger(qa?.new24hUnanswered || 0), "red", "最近 24 小时"],
+      ["48h+ 未首答", formatInteger(qa?.awaitingFirstReply48h || 0), "red", qa?.oldestUnansweredAt ? `最早 ${formatDate(qa.oldestUnansweredAt)}` : "当前为 0"],
+      ["全部未首答", formatInteger(qa?.awaitingFirstReply || 0), "orange", "answerCount = 0"],
     ]} />
     <div className="two-col equal-cols">
-      <Card><h2>项目节奏</h2><TimelineRow label="报名截止" value={formatDate(project.enrollEnd)} state="done" /><TimelineRow label="正式开船" value={formatDate(project.sailAt)} state="done" /><TimelineRow label="当前建议节点" value={project.currentMilestone} state="current" /><TimelineRow label="下一节点" value={`${project.nextMilestone} · ${formatDate(project.nextDueAt)}`} state="next" /><TimelineRow label="项目结束" value={formatDate(project.endAt)} state="next" /></Card>
-      <Card><h2>运营压力</h2><CompareBars rows={[
-        { label: "作业密度", value: outputDensity(project), max: 4, display: outputDensity(project).toFixed(2) },
-        { label: "点评覆盖", value: reviewCoverage(project), max: 100, display: `${reviewCoverage(project).toFixed(2)}%` },
-        { label: "百人待回答", value: openQaPerHundred(project), max: 30, display: openQaPerHundred(project).toFixed(1) },
-        { label: "问答解决", value: project.qaTotal ? (project.qaResolved / project.qaTotal) * 100 : 0, max: 100, display: `${project.qaResolved}/${project.qaTotal}` },
-      ]} /><p className="card-note">指标只用于项目间比较，不代表学习完成率或运营质量结论。</p></Card>
+      <Card><SectionHead title="关卡时间线" note="按建议完成时间排列" />{tasks.length ? <TaskTimeline ops={ops} tasks={tasks} /> : <EmptyState title="暂无关卡定义" text="任务接口尚未返回该项目的关卡。" />}</Card>
+      <Card><SectionHead title="答疑主题" note="固定分类聚合，不展示成员问题原文" />{qa?.topicBuckets.length ? <TopicList rows={qa.topicBuckets} /> : <EmptyState title="暂无可用主题聚合" text="不会用空数据生成判断。" />}</Card>
     </div>
-    <Card><h2>当前运营判断</h2><div className="judgement-grid">
-      <Judgement label="阶段" text={remaining <= 7 ? "已进入收尾窗口，应优先守住最终任务与答疑。" : "仍在中段推进，重点看下一里程碑的作业承接。"} />
-      <Judgement label="产出" text={`当前人均 ${outputDensity(project).toFixed(2)} 条审核可见作业；作业量不能直接当作成果质量。`} />
-      <Judgement label="点评" text={`${formatInteger(project.unreviewedCount ?? 0)} 条处于未点评状态；应结合教练排班确认真实处理优先级。`} />
-      <Judgement label="问答" text={project.qaPartialResults ? `${formatInteger(project.qaOpen)} 条待回答，但 MCP 标记为部分结果，不能视为完整总量。` : `${formatInteger(project.qaOpen)} 条处于待回答状态，需要核对答疑排班和状态回写。`} />
-      <Judgement label="边界" text={project.outputCountAtBoundary ? "产出查询触及 10,000 条边界，页面按下限展示。" : project.qaPartialResults ? "问答端点返回 PARTIAL，页面保留缺口提示。" : "当前项目查询未标记结果边界。"} />
-    </div></Card>
+    <section className="definition-bar"><b>数据更新时间</b><span>{formatDate(qa?.dataAsOf || project.dataAsOf)}；另有 {formatInteger(qa?.answeredButOpen || 0)} 条“已有回复但平台状态未闭合”，只作为数据质量问题，不进入运营待办。</span></section>
+    <section className="coverage-note"><strong>提交趋势暂不展示</strong><span>{ops.operations.collection.submissionTrendReason}</span></section>
   </div>;
 }
 
-function ResultsView({ ops }: { ops: McpOpsSnapshot }) {
-  const projects = [...ops.projects].sort((a, b) => b.outputCount - a.outputCount);
-  const reviewed = sum(projects, "reviewedCount");
-  const unreviewed = sum(projects, "unreviewedCount");
+function QaRadar({ ops }: { ops: McpOpsSnapshot }) {
+  const totals = qaTotals(ops);
+  const topics = useMemo(() => {
+    const merged = new Map<string, { recent7d: number; awaitingFirstReply: number; awaitingFirstReply48h: number }>();
+    for (const project of ops.operations.qaProjects) for (const row of project.topicBuckets) {
+      const current = merged.get(row.topic) || { recent7d: 0, awaitingFirstReply: 0, awaitingFirstReply48h: 0 };
+      current.recent7d += row.recent7d;
+      current.awaitingFirstReply += row.awaitingFirstReply;
+      current.awaitingFirstReply48h += row.awaitingFirstReply48h;
+      merged.set(row.topic, current);
+    }
+    return [...merged.entries()].map(([topic, value]) => ({ topic, ...value })).sort((a, b) => b.awaitingFirstReply48h - a.awaitingFirstReply48h || b.recent7d - a.recent7d);
+  }, [ops.operations.qaProjects]);
+
   return <div className="page-stack">
     <MetricGrid metrics={[
-      ["审核可见产出", formatInteger(sum(projects, "outputCount")), "blue", "任务制作业"],
-      ["已点评作业", formatInteger(reviewed), "green", "导师点评状态"],
-      ["未点评作业", formatInteger(unreviewed), "red", "动态批次聚合"],
-      ["总体点评覆盖", `${((reviewed / Math.max(1, reviewed + unreviewed)) * 100).toFixed(2)}%`, "orange", "边界项目仅供参考"],
-      ["平均人均密度", (sum(projects, "outputCount") / Math.max(1, sum(projects, "joinCount"))).toFixed(2), "green", "跨项目粗粒度"],
-      ["可验证好事", "暂不可得", "orange", "MCP 无任务制映射"],
+      ["24h 新问题", formatInteger(totals.new24h), "blue", "真实创建时间"],
+      ["24h 新问题未首答", formatInteger(totals.new24hUnanswered), "red", "首答处理入口"],
+      ["全部未首答", formatInteger(totals.awaitingFirstReply), "orange", "answerCount = 0"],
+      ["超过 48h 未首答", formatInteger(totals.awaitingFirstReply48h), "red", "优先清理"],
+      ["覆盖项目", formatInteger(ops.operations.qaProjects.length), "purple", "逐项目显示数据时间"],
     ]} />
-    <section className="boundary-banner"><strong>为什么这里不直接展示“航海好事”？</strong><span>{ops.goodNewsMapping.reason}</span></section>
-    <div className="two-col equal-cols">
-      <Card><h2>产出总量排行</h2><BarList items={projects.map((project) => ({ name: project.name, value: project.outputCount }))} format={(value) => formatInteger(value)} /></Card>
-      <Card><h2>点评覆盖排行</h2><BarList items={[...projects].sort((a, b) => reviewCoverage(b) - reviewCoverage(a)).map((project) => ({ name: project.name, value: reviewCoverage(project) }))} format={(value) => `${value.toFixed(2)}%`} /></Card>
-    </div>
-    <Card><h2>项目成果观察</h2><DataTable headers={["项目", "审核可见产出", "已点评", "未点评", "点评覆盖", "人均密度", "最近提交", "数据质量"]} rows={projects.map((project) => [project.name, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, formatInteger(project.reviewedCount ?? 0), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, `${reviewCoverage(project).toFixed(2)}%`, outputDensity(project).toFixed(2), formatDate(project.lastSubmissionAt), <ProjectQualityTag key={project.id} project={project} />])} /></Card>
+    <section className="definition-bar"><b>新版口径</b><span>“未首答”只看是否存在回答；平台 questionStatus 大量未闭合，因此不再显示为运营待回答总数。</span></section>
+    <Card><SectionHead title="项目首答压力" note="先看 48 小时以上，再看 24 小时新增" /><QaProjectTable ops={ops} rows={[...ops.operations.qaProjects].sort((a, b) => b.awaitingFirstReply48h - a.awaitingFirstReply48h || b.new24hUnanswered - a.new24hUnanswered)} /></Card>
+    <Card><SectionHead title="问题主题聚合" note={`分类器 ${ops.operations.collection.qaClassifierVersion || "未标记"}；主题可重叠风险已通过单分类控制`} />
+      {topics.length ? <TopicList rows={topics} /> : <EmptyState title="暂无主题数据" text="不会展示问答原文或成员信息。" />}
+    </Card>
   </div>;
 }
 
-function buildActions(projects: McpProject[]): OpsAction[] {
-  const actions: OpsAction[] = [];
-  projects.filter((project) => (project.unreviewedCount ?? 0) >= 8000).sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0)).forEach((project) => actions.push({ priority: "P1", project: project.name, signal: `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)} 条作业未点评`, suggestion: "核对点评分工、批量反馈机制和优先任务覆盖", basis: "searchVisibleActivitySubmissions" }));
-  projects.filter((project) => project.qaOpen >= 1000).sort((a, b) => b.qaOpen - a.qaOpen).forEach((project) => actions.push({ priority: "P1", project: project.name, signal: `${formatInteger(project.qaOpen)} 条问答待回答`, suggestion: "核对答疑排班、集中答疑入口和状态回写机制", basis: "searchActivityQa" }));
-  projects.filter((project) => (project.unreviewedCount ?? 0) >= 3000 && (project.unreviewedCount ?? 0) < 8000).sort((a, b) => (b.unreviewedCount ?? 0) - (a.unreviewedCount ?? 0)).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: `${formatInteger(project.unreviewedCount ?? 0)} 条作业未点评`, suggestion: "抽查关键任务点评覆盖，确认是否需要集中反馈", basis: "searchVisibleActivitySubmissions" }));
-  projects.filter((project) => daysRemaining(project) <= 7).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: `${daysRemaining(project)} 天后结束`, suggestion: `围绕“${project.nextMilestone}”安排收尾提醒`, basis: "activityList + searchActivityTasks" }));
-  projects.filter((project) => project.isFull).forEach((project) => actions.push({ priority: "P2", project: project.name, signal: "报名状态为已满", suggestion: "确认满额后的候补、入群与开营承接是否完整", basis: "activityList" }));
-  projects.filter((project) => project.outputCountAtBoundary).forEach((project) => actions.push({ priority: "P3", project: project.name, signal: "产出数正好为 10,000", suggestion: "复核 MCP 查询是否存在总数边界，避免低估实际产出", basis: "searchActivityOutputs" }));
-  projects.filter((project) => project.qaPartialResults).forEach((project) => actions.push({ priority: "P3", project: project.name, signal: "问答端点返回部分结果", suggestion: "补拉问答聚合或在运营判断中保留数据缺口", basis: "searchActivityQa" }));
-  return actions;
-}
+const GOOD_NEWS_FLOW = ["候选发现", "待运营看稿", "需船员修改", "运营复看", "待同步精华修改", "后续处理中", "已完成", "本轮不推进"];
 
-function ActionsView({ ops }: { ops: McpOpsSnapshot }) {
-  const actions = useMemo(() => buildActions(ops.projects), [ops.projects]);
+function GoodNewsWorkbench({ ops }: { ops: McpOpsSnapshot }) {
+  const byStage = new Map(ops.operations.goodNews.stages.map((item) => [item.stage, item.count]));
   return <div className="page-stack">
     <MetricGrid metrics={[
-      ["建议行动", formatInteger(actions.length), "blue", "自动生成，人工确认"],
-      ["P1 高压项", formatInteger(actions.filter((item) => item.priority === "P1").length), "red", "点评与答疑"],
-      ["未点评总量", formatInteger(sum(ops.projects, "unreviewedCount")), "orange", "导师点评状态"],
-      ["临期项目", formatInteger(ops.projects.filter((item) => daysRemaining(item) <= 7).length), "orange", "7 天内结束"],
-      ["数据质量项", formatInteger(actions.filter((item) => item.priority === "P3").length), "purple", "需核对查询口径"],
+      ["候选发现", formatInteger(byStage.get("候选发现") || 0), "blue", "MCP 仅提供候选来源"],
+      ["待运营看稿", formatInteger(byStage.get("待运营看稿") || 0), "orange", "唯一内容判断入口"],
+      ["修改与复看", formatInteger((byStage.get("需船员修改") || 0) + (byStage.get("运营复看") || 0)), "purple", "运营跟进"],
+      ["已完成", formatInteger(byStage.get("已完成") || 0), "green", "人工确认"],
     ]} />
-    <section className="boundary-banner"><strong>这是建议，不是自动指令</strong><span>所有动作都由聚合指标触发；负责人、截止时间和实际执行状态尚未从 MCP 获得。</span></section>
-    <Card><h2>行动队列</h2><DataTable headers={["优先级", "项目", "信号", "建议动作", "依据"]} rows={actions.map((item) => [<Tag key={`${item.project}-${item.signal}`} tone={item.priority === "P1" ? "red" : item.priority === "P2" ? "orange" : "blue"}>{item.priority}</Tag>, item.project, item.signal, item.suggestion, item.basis])} /></Card>
+    <section className="role-boundary"><strong>判断边界</strong><span>运营是唯一内容审核人；领队和志愿者只负责传达。作业量、关键词、点赞和评论都不能自动等同航海好事。</span></section>
+    <div className="good-news-flow">{GOOD_NEWS_FLOW.map((stage, index) => <article key={stage}><span>{index + 1}</span><b>{stage}</b><strong>{formatInteger(byStage.get(stage) || 0)}</strong></article>)}</div>
+    {(ops.operations.goodNews.candidateCount || 0) === 0 ? <EmptyState title="当前没有经过人工建档的好事候选" text={ops.operations.goodNews.note || "MCP 作业尚未经过运营去重、证据核验和内容判断。"} /> : <Card><SectionHead title="候选台账" note="仅展示匿名状态；正文和证据保留在受保护的内部系统" /></Card>}
   </div>;
 }
 
-function SnapshotView({ ops }: { ops: McpOpsSnapshot }) {
+function ActionLedger({ ops }: { ops: McpOpsSnapshot }) {
+  const decisions = buildProjectDecisions(ops, referenceNow());
   return <div className="page-stack">
     <MetricGrid metrics={[
-      ["快照时间", formatDate(ops.retrievedAt), "green", "本次 MCP 拉取"],
-      ["上游数据时间", formatDate(ops.dataAsOf), "blue", "项目间可能不同"],
-      ["产出增量", `+${formatInteger(ops.snapshotComparison.outputDelta)}`, "green", `较 ${formatDate(ops.snapshotComparison.previousRetrievedAt)}`],
-      ["建议节点已过", formatInteger(ops.taskSchedule.suggestedFinishElapsed), "orange", "不是成员逾期数"],
-      ["建议节点未到", formatInteger(ops.taskSchedule.suggestedFinishUpcoming), "purple", ops.taskSchedule.allOpenAtRetrievedAt ? `${formatInteger(ops.taskSchedule.total)} 个任务均在开放窗` : "部分任务开放状态待核对"],
-      ["历史期数", formatInteger(ops.historicalPeriodCount), "gold", "activityList 时间轴"],
+      ["建议项目", formatInteger(decisions.length), "blue", "一个项目一项"],
+      ["P1 风险项目", formatInteger(decisions.filter((item) => item.priority === "P1").length), "red", "先处理"],
+      ["关卡临期项目", formatInteger(decisions.filter((item) => item.dueAt).length), "orange", "未来 72h 或刚过期"],
+      ["48h 积压项目", formatInteger(ops.operations.qaProjects.filter((item) => item.awaitingFirstReply48h > 0).length), "purple", "需集中答疑"],
     ]} />
-    <div className="two-col equal-cols">
-      <Card><h2>本次项目快照</h2><InfoRows rows={[
-        ["报名人数", formatInteger(sum(ops.projects, "joinCount"))],
-        ["审核可见产出", formatInteger(sum(ops.projects, "outputCount"))],
-        ["已点评作业", formatInteger(sum(ops.projects, "reviewedCount"))],
-        ["未点评作业", formatInteger(sum(ops.projects, "unreviewedCount"))],
-        ["任务定义", formatInteger(sum(ops.projects, "taskCount"))],
-        ["可见问答", formatInteger(sum(ops.projects, "qaTotal"))],
-        ["待回答状态", formatInteger(sum(ops.projects, "qaOpen"))],
-        ["已解决状态", formatInteger(sum(ops.projects, "qaResolved"))],
-      ]} /></Card>
-      <Card><h2>近 8 期项目数量</h2><TrendChart data={ops.recentTimeline.map((item) => ({ label: item.label, value: item.projects }))} /></Card>
-    </div>
-    <div className="two-col equal-cols">
-      <Card><h2>任务节奏</h2><CompareBars rows={[
-        { label: "建议节点已过", value: ops.taskSchedule.suggestedFinishElapsed, max: Math.max(1, ops.taskSchedule.total), display: `${ops.taskSchedule.suggestedFinishElapsed}/${ops.taskSchedule.total}` },
-        { label: "建议节点未到", value: ops.taskSchedule.suggestedFinishUpcoming, max: Math.max(1, ops.taskSchedule.total), display: `${ops.taskSchedule.suggestedFinishUpcoming}/${ops.taskSchedule.total}` },
-      ]} /><p className="card-note">表示任务配置中的建议完成时间，不代表成员已完成或逾期。</p></Card>
-      <Card><h2>手册覆盖</h2><InfoRows rows={[
-        ["目录节点", formatInteger(ops.manualCoverage.tocCount)],
-        ["可读正文节点", formatInteger(ops.manualCoverage.readableCount)],
-        ["覆盖项目", `${ops.projects.length} / ${ops.projects.length}`],
-        ["正文覆盖率", `${((ops.manualCoverage.readableCount / Math.max(1, ops.manualCoverage.tocCount)) * 100).toFixed(1)}%`],
-      ]} /></Card>
-    </div>
-    <Card><h2>逐项目数据新鲜度</h2><DataTable headers={["项目", "上游数据时间", "最近审核可见提交", "手册正文", "状态"]} rows={ops.projects.map((project) => [project.name, formatDate(project.dataAsOf), formatDate(project.lastSubmissionAt), `${formatInteger(project.manualReadableCount ?? 0)} / ${formatInteger(project.manualTocCount ?? 0)}`, <ProjectQualityTag key={project.id} project={project} />])} /></Card>
-    <section className="boundary-banner"><strong>趋势说明</strong><span>当前只有单次正式运营快照，不能补造逐日趋势。后续每天保存同一组 MCP 指标后，才会形成真实日变化。</span></section>
+    <section className="definition-bar"><b>使用方式</b><span>先按风险分选择项目，再由运营决定“集中答疑 / 发送关卡提醒 / 暂缓”。公开页保持只读，不显示虚假的负责人和完成状态。</span></section>
+    <Card><SectionHead title="项目决策清单" note="风险分只用于排序，不代表项目完成率" />
+      {decisions.length ? <DataTable headers={["优先级", "项目", "风险分", "真实信号", "建议动作", "关卡节点", "数据时间"]} rows={decisions.map((decision) => [<Tag key={decision.id} tone={decision.priority === "P1" ? "red" : decision.priority === "P2" ? "orange" : "blue"}>{decision.priority}</Tag>, projectName(ops, decision.projectId), formatInteger(decision.riskScore), decision.signals.join("；"), decision.recommendation, decision.dueAt ? formatDate(decision.dueAt) : "无硬截止", formatDate(decision.dataAsOf)])} /> : <EmptyState title="暂无行动建议" text="下一次 MCP 同步后重新计算。" />}
+    </Card>
   </div>;
 }
 
-function CompareView({ ops }: { ops: McpOpsSnapshot }) {
-  const [type, setType] = useState("全部类型");
-  const [platform, setPlatform] = useState("全部方向");
-  const types = [...new Set(ops.projects.map((project) => project.type))];
-  const platforms = [...new Set(ops.projects.flatMap((project) => project.platforms))];
-  const projects = ops.projects.filter((project) => (type === "全部类型" || project.type === type) && (platform === "全部方向" || project.platforms.includes(platform)));
-
-  return <div className="page-stack">
-    <div className="filter-bar"><select value={type} onChange={(event) => setType(event.target.value)}><option>全部类型</option>{types.map((item) => <option key={item}>{item}</option>)}</select><select value={platform} onChange={(event) => setPlatform(event.target.value)}><option>全部方向</option>{platforms.map((item) => <option key={item}>{item}</option>)}</select><span className="filter-result">当前显示 {projects.length} 个项目</span></div>
-    <Card><h2>项目横向对比</h2><DataTable headers={["项目", "方向", "报名", "产出", "未点评", "点评覆盖", "任务", "待回答", "百人待回答", "剩余天数"]} rows={projects.map((project) => [project.name, project.platforms.join(" / "), formatInteger(project.joinCount), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, `${reviewCoverage(project).toFixed(2)}%`, project.taskCount, project.qaPartialResults ? `≥${formatInteger(project.qaOpen)}` : formatInteger(project.qaOpen), openQaPerHundred(project).toFixed(1), daysRemaining(project)])} /></Card>
-    <div className="three-col">
-      <Card><h2>作业密度</h2><BarList items={[...projects].sort((a, b) => outputDensity(b) - outputDensity(a)).map((project) => ({ name: project.name, value: outputDensity(project) }))} format={(value) => value.toFixed(2)} /></Card>
-      <Card><h2>点评覆盖</h2><BarList items={[...projects].sort((a, b) => reviewCoverage(b) - reviewCoverage(a)).map((project) => ({ name: project.name, value: reviewCoverage(project) }))} format={(value) => `${value.toFixed(2)}%`} /></Card>
-      <Card><h2>百人待回答</h2><BarList items={[...projects].sort((a, b) => openQaPerHundred(b) - openQaPerHundred(a)).map((project) => ({ name: project.name, value: openQaPerHundred(project) }))} format={(value) => value.toFixed(1)} /></Card>
-    </div>
-  </div>;
-}
-
-function DataScopeView({ ops }: { ops: McpOpsSnapshot }) {
+function DataHealth({ ops }: { ops: McpOpsSnapshot }) {
+  const fetched = ops.operations.qaProjects.reduce((sum, item) => sum + item.fetched, 0);
+  const expected = ops.operations.qaProjects.reduce((sum, item) => sum + item.upstreamTotal, 0);
   return <div className="page-stack">
     <MetricGrid metrics={[
-      ["数据源", "生财 MCP", "green", "唯一业务数据源"],
-      ["项目范围", ops.label, "gold", `${ops.projects.length} 个项目`],
-      ["个人信息", "不保存", "blue", "无成员标识和原文"],
-      ["群聊数据", "未使用", "orange", "ZIP 同步已关闭"],
+      ["项目", formatInteger(ops.projects.length), "green", "当前运营范围"],
+      ["任务定义", formatInteger(ops.operations.taskWindows.length), "blue", ops.operations.collection.taskDefinitionsComplete ? "完整" : "不完整"],
+      ["问答聚合覆盖", `${formatInteger(fetched)} / ${formatInteger(expected)}`, "blue", ops.operations.collection.qaRecordsComplete ? "完整" : "部分"],
+      ["平台状态异常", formatInteger(qaTotals(ops).answeredButOpen), "orange", "已有回复但未闭合"],
+      ["快照时间", formatDate(ops.retrievedAt), "purple", "北京时间"],
     ]} />
     <div className="two-col equal-cols">
-      <Card className="source-checks-card"><h2>MCP 工具健康</h2><DataTable headers={["工具", "状态", "面板用途"]} rows={ops.sourceChecks.map((item) => [item.tool, <Tag key={item.tool} tone={item.status === "正常" ? "green" : "orange"}>{item.status}</Tag>, item.scope])} /></Card>
-      <Card><h2>指标定义</h2><InfoRows rows={[
-        ["报名人数", "activityList 返回的 joinCnt"],
-        ["审核可见产出", "searchActivityOutputs / 可见作业接口返回的任务制作业总数"],
-        ["已点评 / 未点评", "searchVisibleActivitySubmissions 的导师点评状态，不是内容审核状态"],
-        ["人均作业密度", "审核可见产出 ÷ 报名人数，不是完成率"],
-        ["待回答问答", "searchActivityQa 中 questionStatus=1"],
-        ["已解决问答", "searchActivityQa 中 questionStatus=2"],
-        ["手册正文节点", "activityManualToc 中 hasContent=true 的节点数，不是阅读率"],
-        ["建议节点已过", "任务建议完成时间已过，不是成员逾期或未完成"],
-        ["剩余天数", "按北京时间日历日计算到项目结束日期"],
-      ]} /></Card>
+      <Card><SectionHead title="现在可用于运营" /><ul className="plain-list"><li>真实关卡标题、建议完成时间和项目结束时间</li><li>最近 24 小时新增问题</li><li>尚无首答的问题与 48 小时老化</li><li>固定主题的匿名问答聚合</li><li>人工航海好事流转状态</li></ul></Card>
+      <Card><SectionHead title="明确不再使用" /><ul className="plain-list"><li>总报名、总作业和人均作业排名</li><li>未点评总量与点评覆盖率</li><li>平台 questionStatus 直接当运营待办</li><li>提交次数推导完成率、掉队人数</li><li>关键词命中直接当航海好事</li></ul></Card>
     </div>
-    <Card><h2>公开边界</h2><div className="boundary-grid"><Boundary title="允许展示" text="项目名称、类型、方向、目标、报名数、任务数、作业与点评聚合、问答状态、手册覆盖、时间节点和聚合建议。" /><Boundary title="不进入网站" text="成员身份、memberRef、作业原文、问答原文、联系方式、群聊、ZIP、证据编号和未经确认的个人好事。" /><Boundary title="当前不能判断" text="独立提交人数、完课率、内容质量、GMV、转化、答疑 SLA、真实好事映射和成员学习进度。" /></div></Card>
+    <Card><SectionHead title="数据源状态" note="失败、部分结果和边界必须显式展示" /><DataTable headers={["MCP 工具", "状态", "用途 / 边界"]} rows={ops.sourceChecks.map((check) => [check.tool, check.status, check.scope])} /></Card>
+    <section className="coverage-note"><strong>公开安全边界</strong><span>页面与 API 不包含成员姓名、用户 ID、作业或问答原文、链接、证据正文、群聊和 ZIP 数据。</span></section>
   </div>;
 }
 
-function ProjectTable({ projects }: { projects: McpProject[] }) {
-  return <DataTable headers={["项目", "类型", "报名", "产出", "未点评", "待回答", "下一节点", "剩余"]} rows={projects.map((project) => [<div className="project-name-cell" key={`${project.id}-name`}><Image src={project.avatar} alt="" width={32} height={32} unoptimized /><span><b>{project.name}</b><small>{project.platforms.join(" / ")}</small></span></div>, project.type, formatInteger(project.joinCount), `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.outputCount)}`, `${project.outputCountAtBoundary ? "≥" : ""}${formatInteger(project.unreviewedCount ?? 0)}`, project.qaPartialResults ? `≥${formatInteger(project.qaOpen)}` : formatInteger(project.qaOpen), <span className="milestone-cell" key={`${project.id}-milestone`}>{project.nextMilestone}<small>{formatDate(project.nextDueAt)}</small></span>, `${daysRemaining(project)} 天`])} />;
+function TaskCompactList({ ops, tasks }: { ops: McpOpsSnapshot; tasks: TaskWindow[] }) {
+  return <div className="task-compact-list">{tasks.map((task) => { const status = taskStatus(task); return <article key={task.taskId}><div><small>{projectName(ops, task.projectId)}</small><strong>{task.title}</strong><span>{formatDate(task.suggestedFinishAt)}</span></div><Tag tone={status.tone}>{status.label}</Tag></article>; })}</div>;
 }
 
-function MetricGrid({ metrics, compact = false }: { metrics: [string, string, string, string?][]; compact?: boolean }) {
-  return <section className={`metric-band mcp-metrics ${compact ? "compact" : ""}`}>{metrics.map(([label, value, tone, note]) => <div className={`metric-item ${tone}`} key={label}><small>{label}</small><strong className={/[\u4e00-\u9fa5]/.test(value) || value.length > 8 ? "text-value" : ""}>{value}</strong>{note ? <em>{note}</em> : null}</div>)}</section>;
+function TaskTimeline({ tasks }: { ops: McpOpsSnapshot; tasks: TaskWindow[] }) {
+  return <div className="task-timeline">{tasks.map((task) => { const status = taskStatus(task); return <article key={task.taskId}><i className={status.tone} /><div><small>{formatDate(task.suggestedFinishAt)}</small><strong>{task.title}</strong><span>提交窗口至 {formatDate(task.endAt)}</span></div><Tag tone={status.tone}>{status.label}</Tag></article>; })}</div>;
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section>; }
+function QaProjectTable({ ops, rows }: { ops: McpOpsSnapshot; rows: QaProjectMetric[] }) {
+  return <DataTable headers={["项目", "24h 新增", "新问题未首答", "全部未首答", "48h+ 未首答", "数据时间", "数据覆盖"]} rows={rows.map((row) => [projectName(ops, row.projectId), formatInteger(row.new24h), formatInteger(row.new24hUnanswered), formatInteger(row.awaitingFirstReply), formatInteger(row.awaitingFirstReply48h), formatDate(row.dataAsOf), row.complete && !row.partialResults ? "完整" : `${formatInteger(row.fetched)} / ${formatInteger(row.upstreamTotal)}`])} />;
+}
+
+function TopicList({ rows }: { rows: { topic: string; recent7d: number; awaitingFirstReply: number; awaitingFirstReply48h: number }[] }) {
+  const max = Math.max(1, ...rows.map((row) => row.awaitingFirstReply));
+  return <div className="topic-list">{rows.map((row) => <article key={row.topic}><div><b>{row.topic}</b><span>近 7 天 {formatInteger(row.recent7d)} 条</span></div><div className="topic-bar"><i style={{ width: `${Math.max(2, row.awaitingFirstReply / max * 100)}%` }} /></div><strong>{formatInteger(row.awaitingFirstReply48h)}<small> 48h+</small></strong></article>)}</div>;
+}
+
+function MetricGrid({ metrics, compact = false }: { metrics: [string, string, string, string][]; compact?: boolean }) {
+  return <div className={`metric-band mcp-metrics ${compact ? "compact" : ""}`}>{metrics.map(([label, value, tone, note]) => <article className={`metric-item ${tone}`} key={label}><span>{label}</span><strong className={value.length > 12 ? "text-value" : ""}>{value}</strong><em>{note}</em></article>)}</div>;
+}
+
+function Card({ children }: { children: React.ReactNode }) { return <section className="card">{children}</section>; }
+function SectionHead({ title, note, action, onAction }: { title: string; note?: string; action?: string; onAction?: () => void }) { return <div className="section-head"><div><h2>{title}</h2>{note ? <p>{note}</p> : null}</div>{action ? <button className="text-action" onClick={onAction}>{action}</button> : null}</div>; }
+function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) { return <span className={`tag ${tone}`}>{children}</span>; }
+function EmptyState({ title, text }: { title: string; text: string }) { return <section className="empty-state"><b>{title}</b><span>{text}</span></section>; }
+function LoadingState() { return <section className="empty-state loading-state"><b>正在读取 MCP 运营快照</b><span>只加载真实数据，不显示演示内容。</span></section>; }
 
 function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
-  if (!rows.length) return <div className="empty-state"><p>当前筛选条件下暂无数据。</p></div>;
-  return <div className="table-scroll"><table className="data-table"><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="table-scroll"><table className="data-table"><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
 }
-
-function Tag({ children, tone = "green" }: { children: React.ReactNode; tone?: string }) { return <span className={`tag ${tone}`}>{children}</span>; }
-
-function ProjectQualityTag({ project }: { project: McpProject }) {
-  if (project.outputCountAtBoundary) return <Tag tone="orange">产出为下限</Tag>;
-  if (project.qaPartialResults) return <Tag tone="orange">问答部分结果</Tag>;
-  return <Tag tone="green">聚合完整</Tag>;
-}
-
-function BarList({ items, format }: { items: { name: string; value: number }[]; format: (value: number) => string }) {
-  const max = Math.max(1, ...items.map((item) => item.value));
-  return <div className="bar-list mcp-bar-list">{items.map((item) => <div className="bar-row" key={item.name}><span title={item.name}>{item.name}</span><div className="bar-track"><i style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }} /></div><b>{format(item.value)}</b></div>)}</div>;
-}
-
-function TrendChart({ data }: { data: { label: string; value: number }[] }) {
-  return <div className="line-chart" role="img" aria-label="历史项目数量趋势"><ResponsiveContainer width="100%" height={190}><RechartsLineChart data={data} margin={{ top: 12, right: 16, left: -20, bottom: 0 }}><CartesianGrid stroke="#ECEFEC" strokeDasharray="4 4" vertical={false} /><XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 11 }} /><YAxis allowDecimals={false} tickLine={false} axisLine={{ stroke: "#E2E6E3" }} tick={{ fill: "#5F6B66", fontSize: 11 }} /><Tooltip contentStyle={{ borderRadius: 6, borderColor: "#E2E6E3" }} /><Line type="monotone" dataKey="value" stroke="#237B69" strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: "#237B69", strokeWidth: 2 }} isAnimationActive={false} /></RechartsLineChart></ResponsiveContainer></div>;
-}
-
-function SectionHead({ title, note, action, onAction }: { title: string; note: string; action?: string; onAction?: () => void }) { return <div className="section-head"><div><h2>{title}</h2><p>{note}</p></div>{action ? <button className="ghost" onClick={onAction}>{action}</button> : null}</div>; }
-function Signal({ tone, label, value, detail }: { tone: string; label: string; value: string; detail: string }) { return <article className={`signal-item ${tone}`}><small>{label}</small><strong>{value}</strong><p>{detail}</p></article>; }
-function TimelineRow({ label, value, state }: { label: string; value: string; state: string }) { return <div className={`timeline-row ${state}`}><i /><span>{label}</span><b>{value}</b></div>; }
-function Judgement({ label, text }: { label: string; text: string }) { return <article><small>{label}</small><p>{text}</p></article>; }
-function Boundary({ title, text }: { title: string; text: string }) { return <article><h3>{title}</h3><p>{text}</p></article>; }
-function InfoRows({ rows }: { rows: [string, string][] }) { return <dl className="info-rows">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>; }
-function CompareBars({ rows }: { rows: { label: string; value: number; max: number; display: string }[] }) { return <div className="compare-bars">{rows.map((row) => <div key={row.label}><span>{row.label}</span><div className="bar-track"><i style={{ width: `${Math.min(100, (row.value / row.max) * 100)}%` }} /></div><b>{row.display}</b></div>)}</div>; }
-function EmptyState({ title, text }: { title: string; text: string }) { return <div className="page-stack"><Card><div className="empty-state"><h2>{title}</h2><p>{text}</p></div></Card></div>; }
