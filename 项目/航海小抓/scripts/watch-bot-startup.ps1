@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Continue"
-$Project = "C:\Users\18786\Documents\Codex\2026-07-13\v\work\Work-AI\项目\航海小抓"
+$Project = Split-Path -Parent $PSScriptRoot
 $LogDir = Join-Path $Project "logs"
 $LogFile = Join-Path $LogDir "bot-autostart.log"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null

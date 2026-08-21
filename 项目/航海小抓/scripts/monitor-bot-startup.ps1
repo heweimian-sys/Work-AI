@@ -1,5 +1,5 @@
 ﻿param([int]$Tail = 80)
-$Project = "C:\Users\18786\Documents\Codex\2026-07-13\v\work\Work-AI\项目\航海小抓"
+$Project = Split-Path -Parent $PSScriptRoot
 $StartupFile = Join-Path ([Environment]::GetFolderPath("Startup")) "FeishuKbBot.cmd"
 $WatchScript = Join-Path $Project "scripts\watch-bot-startup.ps1"
 $LogFile = Join-Path $Project "logs\bot-autostart.log"
