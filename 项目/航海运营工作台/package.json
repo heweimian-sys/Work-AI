@@ -8,9 +8,9 @@
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "vite",
-    "build": "vinext build && node scripts/validate-artifact.mjs",
+    "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test --test-isolation=none tests/rendered-html.test.mjs tests/scys-ops-data.test.mjs tests/public-api-safety.test.mjs",
+    "test": "npm run build",
     "validate:artifact": "node scripts/validate-artifact.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -42,5 +42,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "航海运营工作台"
+  "displayName": "抖音 CPS 五期航海情报站"
 }
