@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "vinext build && node scripts/cloudflare-pages-build.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "content:publish": "node scripts/publish-content.mjs",
     "content:check": "node scripts/publish-content.mjs --check",
