@@ -1,4 +1,4 @@
-import { cp, copyFile, readdir } from "node:fs/promises";
+import { cp, copyFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -27,5 +27,17 @@ await copyChildren(serverDir, distDir, { skip: new Set(["index.js"]) });
 await copyChildren(clientDir, distDir);
 await copyFile(join(serverDir, "index.js"), join(distDir, "_worker.js"));
 await copyFile(join(serverDir, "index.js"), join(distDir, "index.js"));
+await writeFile(
+  join(distDir, "_routes.json"),
+  JSON.stringify(
+    {
+      version: 1,
+      include: ["/*"],
+      exclude: ["/_next/static/*", "/favicon.svg"],
+    },
+    null,
+    2,
+  ),
+);
 
-console.log("Cloudflare Pages output ready: dist/_worker.js + dist/index.js + merged assets");
+console.log("Cloudflare Pages output ready: dist/_worker.js + dist/index.js + static asset routes");
