@@ -48,34 +48,34 @@ function Overview({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const [shareOpen, setShareOpen] = useState(false);
   return <div className="page-enter">
     <section className="flex flex-wrap items-end justify-between gap-6 border-b border-black/10 pb-7">
-      <div><p className="eyebrow">2026 年 9 月 8 日 · 星期二</p><h1 className="page-title">今日航海概览</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-black/55">Day 4 已读取四个群 477 条当日消息。今天不是“又有人出单了”这么简单，而是减少推荐、内容耗时、口令跟单和类目选择集中碰撞的一天。</p></div>
-      <div className="flex flex-wrap items-center gap-3"><div className="flex items-center gap-2 text-xs text-black/45"><span className="status-dot" />当前更新至 9 月 8 日 22:50</div><button className="share-trigger" onClick={() => setShareOpen(true)}><Share2 />分享本期情报</button></div>
+      <div><p className="eyebrow">2026 年 9 月 9 日 · 星期三</p><h1 className="page-title">今日航海概览</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-black/55">Day 5 已更新四个航海群。今天的重点不是再把消息压成几条结论，而是把直播、流量排查、口令密令、素材处理和订单归因整理成船员能直接照着做的情报。</p></div>
+      <div className="flex flex-wrap items-center gap-3"><div className="flex items-center gap-2 text-xs text-black/45"><span className="status-dot" />当前更新至 9 月 9 日 17:42</div><button className="share-trigger" onClick={() => setShareOpen(true)}><Share2 />分享本期情报</button></div>
     </section>
 
     <section className="grid border-b border-black/10 lg:grid-cols-[.7fr_1fr_1.35fr]">
-      <div className="metric-cell lg:border-r"><p className="metric-label">航行进度</p><p className="status-value">Day 4</p></div>
-      <div className="metric-cell lg:border-r"><p className="metric-label">当前阶段</p><p className="mt-2 text-lg font-semibold">首单验证与方法复制</p></div>
-      <div className="metric-cell"><p className="metric-label">下一个关键节点</p><p className="mt-2 text-lg font-semibold">把偶然出单变成连续复现</p></div>
+      <div className="metric-cell lg:border-r"><p className="metric-label">航行进度</p><p className="status-value">Day 5</p></div>
+      <div className="metric-cell lg:border-r"><p className="metric-label">当前阶段</p><p className="mt-2 text-lg font-semibold">流量排查与链路归因</p></div>
+      <div className="metric-cell"><p className="metric-label">下一个关键节点</p><p className="mt-2 text-lg font-semibold">今晚 20:00 高手领航直播</p></div>
     </section>
 
     <section className="mt-10 grid gap-4 md:grid-cols-3">
       <button className="summary-card green" onClick={() => onOpen('intel')}><span className="card-icon"><CircleAlert /></span><p className="metric-label">今天最该读</p><strong>{dailyIssue.chapters.length} 个完整章节</strong><span>从主线读到战报 <ChevronRight /></span></button>
-      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Check /></span><p className="metric-label">已整理问题</p><strong>30+ 个具体回答</strong><span>减少推荐、跟单、口令都在里面 <ChevronRight /></span></button>
-      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Sparkles /></span><p className="metric-label">可复制动作</p><strong>12 个执行清单</strong><span>从今天群聊里抽出来的下一步 <ChevronRight /></span></button>
+      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Check /></span><p className="metric-label">已整理问题</p><strong>35+ 个具体回答</strong><span>减少推荐、万能转链、佣金归因都在里面 <ChevronRight /></span></button>
+      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Sparkles /></span><p className="metric-label">可复制动作</p><strong>直播前后两套清单</strong><span>从今天群聊里抽出来的下一步 <ChevronRight /></span></button>
     </section>
 
     <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-14">
       <section><div className="section-heading"><div><p className="section-kicker">今日简报</p><h2>航海正在发生什么</h2></div><button onClick={() => onOpen('intel')}>查看全部情报 <ArrowUpRight /></button></div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <article className="brief-card"><span>01</span><h3>421 位船员跑通 0—1，但这不是终点</h3><p>今晚日志给出阶段性结果：全体 46.77% 已出首单。接下来要记录作品、推广位、播放、订单和佣金，看哪套动作能复现。</p></article>
-          <article className="brief-card"><span>02</span><h3>减少推荐不能一刀切处理</h3><p>有人看到提示后仍出 2 单，也有人低播放买药出了单。群里更有效的处理方式是先看平台原因、观察 6 小时，再决定改文案、留作品或重发。</p></article>
-          <article className="brief-card"><span>03</span><h3>真正拖慢执行的是“每条从零做”</h3><p>今天有人反馈单条内容要 3 小时。更可执行的办法是先做母版工程，把脚本、字幕、素材和口令检查固定下来，再做差异化替换。</p></article>
-          <article className="brief-card"><span>04</span><h3>口令、密令、推广位仍是反复卡点</h3><p>今天的问题不是概念没讲过，而是到了真实发布时容易混。日报里把“单品用什么、GMV怎么看、京东怎么跟单、推广位怎么分账号”拆开写。</p></article>
+          <article className="brief-card"><span>01</span><h3>第二次高手领航提前到今晚</h3><p>9 月 9 日 20:00 企业微信直播，海宇分享“流量排查思路与实操玩法”。今天最好带着自己的作品数据、平台提示和口令跳转问题去听。</p></article>
+          <article className="brief-card"><span>02</span><h3>减少推荐今天有了更细的处理法</h3><p>第三方引导提示不等于封号；买药个位数播放也可能成交。先看提示原因、观察 6 小时，再决定是否隐藏或改新内容。</p></article>
+          <article className="brief-card"><span>03</span><h3>口令密令不只是“放进去”</h3><p>京东密令可以叠加使用；作品描述里的口令要放最前面；万能转链可以反复生成；推广位负责区分活动和账号数据。</p></article>
+          <article className="brief-card"><span>04</span><h3>素材和文案要开始去 AI 味、去同质化</h3><p>对标文案不能直接照搬，优惠数字要回会场核验，平台 logo/红包/搜索等画面元素要打码或换代称，素材最好自己截取。</p></article>
         </div>
       </section>
       <aside className="timeline-panel"><div className="flex items-center justify-between"><p className="aside-title">今日更新时间轴</p><Clock3 className="size-4 text-black/35" /></div><ol className="timeline">
-        <li><time>22:03</time><span>发布 Day 4 航行日志：421 人跑通首单，占 46.77%</span></li><li><time>20:40</time><span>出现减少推荐后仍出 2 单的反馈，低播放判断被重新讨论</span></li><li><time>19:52</time><span>买药图文单条 4 单，说明垂直需求不一定需要高播放</span></li><li><time>17:05</time><span>制作效率成为集中卡点，群里开始讨论母版工程和批量素材</span></li>
-      </ol><div className="coverage"><strong>本版数据范围</strong><span>4 个航海群 · 477 条 Day 4 消息</span><span>9 月 8 日 00:02—22:50</span><span>已完成七类情报分配</span></div></aside>
+        <li><time>17:42</time><span>确认目前没有统一外卖密令，可在推广活动生成外卖口令</span></li><li><time>17:20</time><span>多活动归因方案确认：按活动或账号单独建推广位</span></li><li><time>14:19</time><span>前两次直播已放到高手领航入口，后续回放一般 1—2 天上传</span></li><li><time>12:58</time><span>今晚 20:00 第二次高手领航直播，主题为流量排查</span></li>
+      </ol><div className="coverage"><strong>本版数据范围</strong><span>4 个航海群 · 9 月 8 日后增量</span><span>更新至 9 月 9 日 17:42</span><span>已完成七类情报分配</span></div></aside>
     </div>
     {shareOpen && <ShareCard issue={dailyIssue} onClose={() => setShareOpen(false)} />}
   </div>;
