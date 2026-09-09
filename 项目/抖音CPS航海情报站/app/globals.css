@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+/* 页面末尾的阅读布局统一移动端与图片导出体验。 */
 @custom-variant dark (&:is(.dark *));
 @theme inline {
   --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --font-sans: var(--font-geist-sans); --font-mono: var(--font-geist-mono); --font-serif: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", serif; --radius-sm: .25rem; --radius-md: .4rem; --radius-lg: .65rem; --radius-xl: .8rem;
@@ -857,7 +858,7 @@
 .search-results article p { @apply mt-3 text-sm leading-7 text-black/58; }
 .search-results article footer { @apply mt-4 text-[10px] text-black/35; }
 .empty-search { @apply border-y border-black/10 py-10 text-sm text-black/45; }
-.mobile-intel-snapshot,.mobile-toc { display: none; }
+@media (min-width: 641px) { .mobile-intel-snapshot,.mobile-toc { display: none; } }
 .poster-preview { @apply mb-4 rounded-2xl border border-[#d7e7dc] bg-[#f5faf7] p-8; }
 .poster-preview > p { @apply text-xs font-semibold uppercase tracking-[.16em] text-[#0f5132]; }
 .poster-preview h2 { @apply mt-5 font-serif text-3xl font-semibold leading-tight tracking-[-.03em]; }
@@ -1090,4 +1091,63 @@
   .download-card {
     @apply mt-3 rounded-lg py-3;
   }
+}
+/* 阅读与分享：统一入口、正文和实际 PNG 预览。 */
+.overview-topics { margin-top: 28px; }
+.magazine-layout, .magazine-index, .magazine-index nav { min-width: 0; max-width: 100%; }
+@media (min-width: 641px) and (max-width: 1023px) { .magazine-layout { grid-template-columns: minmax(0, 1fr); } .magazine-index { margin-inline: 0; padding-inline: 0; } .magazine-index nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .magazine-index nav a { min-width: 0; } }
+.overview-topics > button { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left; padding: 18px 0; border-bottom: 1px solid #e5ebe7; }
+.overview-topics > button > span { color: #17734b; font-size: 12px; }
+.overview-topics > button > div { flex: 1; min-width: 0; }
+.overview-topics strong { font-size: 16px; line-height: 1.6; }
+.overview-topics p { margin-top: 5px; font-size: 14px; line-height: 1.7; color: #59665f; }
+.overview-topics svg { width: 18px; flex-shrink: 0; }
+.chapter-detail { margin-top: 24px; }
+.chapter-detail > summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-size: 14px; color: #0f5132; }
+.chapter-detail .chapter-sections { margin-top: 12px; }
+.full-poster { display: block; width: 100%; height: auto; margin-top: 16px; }
+.poster-loading { padding: 48px 12px; text-align: center; }
+.share-backdrop { margin: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; border: 0; }
+.share-dialog { min-width: 0; height: fit-content; }
+.share-actions-row { position: sticky; top: 70px; z-index: 10; background: white; padding: 8px 0; grid-template-columns: 1fr 1fr; }
+.download-card { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
+@media (max-width: 640px) {
+  html { font-size: 16px; }
+  main > div { padding: 20px 16px 48px !important; }
+  .page-title { font-size: 26px; line-height: 1.35; letter-spacing: -.02em; }
+  .page-header > p:last-child { font-size: 14px; line-height: 1.75; }
+  .page-header { padding-bottom: 16px; }
+  .page-header .eyebrow { display: none; }
+  .subnav { margin-top: 16px; }
+  .metric-cell { padding: 12px 0; }
+  .metric-cell + .metric-cell { border-top: 1px solid #edf0ee; }
+  .metric-cell .metric-label { font-size: 12px; }
+  .metric-cell > p:last-child { font-size: 17px; margin-top: 4px; }
+  .mobile-intel-snapshot { display: block; padding: 0 0 18px; border: 0; background: white; }
+  .mobile-intel-snapshot h2 { font-family: inherit; font-size: 24px; line-height: 1.5; letter-spacing: -.02em; }
+  .mobile-intel-snapshot > div:first-child { flex-wrap: wrap; gap: 8px; }
+  .mobile-intel-snapshot button { min-height: 44px; }
+  .mobile-intel-snapshot li { font-size: 15px; line-height: 1.85; }
+  .mobile-intel-snapshot > div:last-child { display: none; }
+  .mobile-toc { display: block; margin: 0 0 24px; padding: 0; background: #f6f9f7; border: 1px solid #e1e9e4; border-radius: 12px; }
+  .mobile-toc summary { padding: 14px; min-height: 48px; }
+  .mobile-toc nav { display: block; padding: 0 14px 8px; }
+  .mobile-toc a { display: grid; grid-template-columns: 24px minmax(0,1fr); min-width: 0; padding: 12px 0; border-top: 1px solid #e1e9e4; }
+  .mobile-toc a strong { font-size: 14px; line-height: 1.65; }
+  .mobile-toc a small { display: none; }
+  .issue-brief { display: none; }
+  .story-chapter { padding: 28px 0; scroll-margin-top: 125px; }
+  .story-chapter > header h2 { font-family: inherit; font-size: 22px; line-height: 1.5; }
+  .chapter-lead { padding-left: 12px; font-size: 15px; line-height: 1.9; color: #47574e; }
+  .chapter-action { margin-top: 20px; padding: 16px; }
+  .chapter-action li, .chapter-sections p { font-size: 15px; line-height: 1.85; color: #34473c; }
+  .chapter-sections h3 { font-size: 16px; line-height: 1.6; }
+  .story-chapter > footer { font-size: 12px; line-height: 1.7; }
+  .date-switcher { display: flex; flex-wrap: wrap; gap: 8px; }
+  .date-switcher button { flex: 1 0 26%; min-width: 0; min-height: 48px; }
+  .share-dialog { min-height: 100dvh; padding: 0 12px 24px; }
+  .share-toolbar { top: 0; }
+  .share-toolbar button { min-width: 44px; min-height: 44px; }
+  .share-actions-row { top: 64px; }
+  .section-heading > div { flex-wrap: wrap; }
 }

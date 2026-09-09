@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowUpRight, Check, ChevronRight, CircleAlert, Clock3, Copy, Download, Search, Share2, Ship, Sparkles, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, ChevronRight, Clock3, Download, Search, Share2, Ship, Sparkles, X } from 'lucide-react';
+import { createPoster, type Issue } from './poster';
 import { Input } from '@/components/ui/input';
 import { archiveIssues, dailyIssue, questions } from '@/content/site-data';
 
@@ -48,7 +49,7 @@ function Overview({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const [shareOpen, setShareOpen] = useState(false);
   return <div className="page-enter">
     <section className="flex flex-wrap items-end justify-between gap-6 border-b border-black/10 pb-7">
-      <div><p className="eyebrow">2026 年 9 月 9 日 · 星期三</p><h1 className="page-title">今日航海概览</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-black/55">Day 5 已更新四个航海群。今天的重点不是再把消息压成几条结论，而是把直播、流量排查、口令密令、素材处理和订单归因整理成船员能直接照着做的情报。</p></div>
+      <div><p className="eyebrow">2026 年 9 月 9 日 · 星期三</p><h1 className="page-title">今日航海概览</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-black/55">今晚 20:00 直播讲流量排查。已经发布内容的船员，先准备作品数据和平台提示；遇到跳转、低播放或订单归因问题，可以按下面的专题查找。</p></div>
       <div className="flex flex-wrap items-center gap-3"><div className="flex items-center gap-2 text-xs text-black/45"><span className="status-dot" />当前更新至 9 月 9 日 17:42</div><button className="share-trigger" onClick={() => setShareOpen(true)}><Share2 />分享本期情报</button></div>
     </section>
 
@@ -58,11 +59,7 @@ function Overview({ onOpen }: { onOpen: (tab: Tab) => void }) {
       <div className="metric-cell"><p className="metric-label">下一个关键节点</p><p className="mt-2 text-lg font-semibold">今晚 20:00 高手领航直播</p></div>
     </section>
 
-    <section className="mt-10 grid gap-4 md:grid-cols-3">
-      <button className="summary-card green" onClick={() => onOpen('intel')}><span className="card-icon"><CircleAlert /></span><p className="metric-label">今天最该读</p><strong>{dailyIssue.chapters.length} 个完整章节</strong><span>从主线读到战报 <ChevronRight /></span></button>
-      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Check /></span><p className="metric-label">已整理问题</p><strong>35+ 个具体回答</strong><span>减少推荐、万能转链、佣金归因都在里面 <ChevronRight /></span></button>
-      <button className="summary-card" onClick={() => onOpen('intel')}><span className="card-icon"><Sparkles /></span><p className="metric-label">可复制动作</p><strong>直播前后两套清单</strong><span>从今天群聊里抽出来的下一步 <ChevronRight /></span></button>
-    </section>
+    <section className="overview-topics"><p className="section-kicker">按你现在遇到的事，直接开始</p>{dailyIssue.chapters.map(chapter => <button key={chapter.id} onClick={() => { onOpen('intel'); setTimeout(() => document.getElementById(chapter.id)?.scrollIntoView({behavior: 'smooth'}), 80); }}><span>{chapter.number}</span><div><strong>{chapter.title}</strong><p>{chapter.actions[0]}</p></div><ChevronRight /></button>)}</section>
 
     <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-14">
       <section><div className="section-heading"><div><p className="section-kicker">今日简报</p><h2>航海正在发生什么</h2></div><button onClick={() => onOpen('intel')}>查看全部情报 <ArrowUpRight /></button></div>
@@ -81,130 +78,54 @@ function Overview({ onOpen }: { onOpen: (tab: Tab) => void }) {
   </div>;
 }
 
-function ShareCard({ issue, onClose }: { issue: (typeof archiveIssues)[number]; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const [imageReady, setImageReady] = useState(false);
-  const longText = [
-    `抖音 CPS 五期航海｜${issue.day} 船员情报`,
-    `${issue.date}｜更新至 ${issue.updatedAt}`,
-    '', issue.title, '', issue.dek, '',
-    '今天先看', ...issue.briefing.map((item, index) => `${index + 1}、${item}`), '',
-    ...issue.chapters.flatMap(chapter => [
-      `${chapter.number}  ${chapter.title}`, '', chapter.lead, '',
-      ...chapter.sections.flatMap(section => [`▍${section.label}`, section.text, '']),
-      '现在就做', ...chapter.actions.map((item, index) => `${index + 1}. ${item}`), '',
-    ]),
-    `信息范围：4 个航海群｜${issue.metrics[0]}｜更新至 ${issue.updatedAt}`,
-    '说明：内容从群聊中提炼，已删除“收到”、表情和重复消息；个别船员经验仅作为实操样本，不视为稳定规律。'
-  ].join('\n');
-
-  async function copyLongText() { await navigator.clipboard.writeText(longText); setCopied(true); setTimeout(() => setCopied(false), 1800); }
-  async function downloadPoster() {
-    const width = 900;
-    const height = 1280;
-    const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const wrap = (text: string, limit: number) => {
-      const lines: string[] = [];
-      let current = '';
-      for (const char of text) {
-        current += char;
-        if (current.length >= limit) {
-          lines.push(current);
-          current = '';
-        }
-      }
-      if (current) lines.push(current);
-      return lines;
-    };
-    let y = 120;
-    const titleLines = wrap(issue.title, 17).slice(0, 4);
-    const briefLines = issue.briefing.slice(0, 3).flatMap((item, index) => wrap(`${index + 1}. ${item}`, 24).slice(0, 3).map((line, lineIndex) => ({ line, indent: lineIndex > 0 })));
-    const metricLines = issue.metrics.slice(0, 4);
-    const titleSvg = titleLines.map(line => {
-      const row = `<text x="64" y="${y}" font-size="48" font-weight="750" fill="#101814">${escape(line)}</text>`;
-      y += 66;
-      return row;
-    }).join('');
-    y += 32;
-    const briefSvg = briefLines.map(item => {
-      const row = `<text x="${item.indent ? 104 : 74}" y="${y}" font-size="29" fill="#314139">${escape(item.line)}</text>`;
-      y += 46;
-      return row;
-    }).join('');
-    const metricsSvg = metricLines.map((item, index) => `<text x="${74 + (index % 2) * 370}" y="${940 + Math.floor(index / 2) * 60}" font-size="25" fill="#0f5132">${escape(item)}</text>`).join('');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="900" height="1280" fill="#ffffff"/>
-      <rect x="36" y="36" width="828" height="1208" rx="42" fill="#f5faf7" stroke="#d7e7dc"/>
-      <circle cx="780" cy="132" r="64" fill="#0f5132" opacity=".11"/>
-      <text x="64" y="82" font-size="24" font-weight="700" fill="#0f5132">抖音 CPS 五期航海</text>
-      <text x="64" y="112" font-size="20" fill="#6c7a72">${escape(issue.day)} · ${escape(issue.date)} · 更新至 ${escape(issue.updatedAt)}</text>
-      ${titleSvg}
-      <rect x="64" y="${y - 12}" width="772" height="2" fill="#101814"/>
-      <text x="64" y="${y + 52}" font-size="26" font-weight="700" fill="#0f5132">今天先看</text>
-      ${(() => { y += 104; return briefSvg; })()}
-      <rect x="64" y="880" width="772" height="170" rx="26" fill="#ffffff" stroke="#dbe9df"/>
-      <text x="74" y="925" font-size="22" font-weight="700" fill="#101814">本期覆盖</text>
-      ${metricsSvg}
-      <text x="64" y="1125" font-size="24" font-weight="700" fill="#101814">打开网页看完整 7 章情报</text>
-      <text x="64" y="1168" font-size="22" fill="#53645a">douyin-cps-voyage.pages.dev</text>
-      <rect x="650" y="1088" width="154" height="154" rx="20" fill="#0f5132"/>
-      <text x="686" y="1176" font-size="24" font-weight="800" fill="#fff">航海</text>
-    </svg>`;
-    const img = new Image();
-    const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = reject;
-      img.src = svgUrl;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(svgUrl);
-    const link = document.createElement('a');
-    link.download = `抖音CPS航海-${issue.day}-分享图.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    setImageReady(true);
-    setTimeout(() => setImageReady(false), 1800);
+function ShareCard({ issue, onClose }: { issue: Issue; onClose: () => void }) {
+  const [poster, setPoster] = useState<{url: string; blob: Blob} | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let cancelled = false, url = '';
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', escape);
+    createPoster(issue).then(blob => {
+      if (cancelled) return;
+      url = URL.createObjectURL(blob); setPoster({url, blob});
+    }).catch(() => setError('图片生成失败，请关闭后重试。'));
+    return () => { cancelled = true; URL.revokeObjectURL(url); document.body.style.overflow = previous; document.removeEventListener('keydown', escape); };
+  }, [issue]);
+  async function shareImage() {
+    if (!poster) return;
+    const file = new File([poster.blob], `航海情报-${issue.day}.png`, {type: 'image/png'});
+    try {
+      if (navigator.canShare?.({files: [file]})) await navigator.share({files: [file], title: `${issue.day} 航海情报`});
+      else setError('此浏览器不支持直接分享，请保存图片后在微信发送。');
+    } catch (e) { if (!(e instanceof Error && e.name === 'AbortError')) setError('请保存图片后发送，或长按图片保存。'); }
   }
-
-  return <dialog open className="share-backdrop" aria-label="分享图片预览">
-    <div className="share-dialog"><div className="share-toolbar"><div><strong>{issue.day} 情报 · 分享图片</strong><span>先发图片引导船员点进网页，长文复制作为备用</span></div><button aria-label="关闭" onClick={onClose}><X /></button></div>
-      <article className="poster-preview">
-        <p>抖音 CPS 五期航海 · {issue.day}</p>
-        <h2>{issue.title}</h2>
-        <span>{issue.date} · 更新至 {issue.updatedAt}</span>
-        <div><strong>今天先看</strong><ol>{issue.briefing.slice(0, 3).map(item => <li key={item}>{item}</li>)}</ol></div>
-        <footer>打开网页看完整 {issue.chapters.length} 章情报<br />douyin-cps-voyage.pages.dev</footer>
-      </article>
-      <article className="share-article">
-        <header><p>抖音 CPS 五期航海 · {issue.day}</p><h2>{issue.title}</h2><div>{issue.date} · 更新至 {issue.updatedAt}</div><span>{issue.dek}</span></header>
-        <section className="share-brief"><strong>今天先看</strong><ol>{issue.briefing.map((item, index) => <li key={item}><b>{index + 1}</b><span>{item}</span></li>)}</ol></section>
-        {issue.chapters.map(chapter => <section className="share-section" key={chapter.id}><div className="share-section-no">{chapter.number}</div><h3>{chapter.title}</h3><p className="share-section-lead">{chapter.lead}</p>{chapter.sections.map(section => <div className="share-paragraph" key={section.label}><h4>{section.label}</h4><p>{section.text}</p></div>)}<div className="share-actions"><strong>现在就做</strong><ol>{chapter.actions.map(action => <li key={action}>{action}</li>)}</ol></div></section>)}
-        <footer><strong>信息范围</strong><span>4 个航海群 · {issue.metrics[0]} · 更新至 {issue.updatedAt}</span><p>已删除“收到”、表情和重复消息；个别船员经验仅作为实操样本，不视为稳定规律。</p></footer>
-      </article>
-      <div className="share-actions-row"><button className="download-card primary" onClick={downloadPoster}><Download />{imageReady ? '图片已生成' : '下载分享图片'}</button><button className="download-card secondary" onClick={copyLongText}><Copy />{copied ? '长文已复制' : '复制完整长文'}</button></div>
+  return <dialog open className="share-backdrop" aria-modal="true" aria-label="完整情报长图">
+    <div className="share-dialog">
+      <div className="share-toolbar"><div><strong>{issue.day} · 完整情报长图</strong><span>预览即下载的图片，包含本期全部章节。手机可长按保存。</span></div><button autoFocus aria-label="关闭" onClick={onClose}><X /></button></div>
+      <div className="share-actions-row">
+        {poster && <a className="download-card primary" href={poster.url} download={`航海情报-${issue.day}.png`}><Download />保存完整图片</a>}
+        {poster && <button className="download-card secondary" onClick={shareImage}><Share2 />分享图片</button>}
+      </div>
+      {error && <p role="alert">{error}</p>}
+      {poster ? <img className="full-poster" src={poster.url} alt={`${issue.day} 完整情报，包含全部章节和操作建议`} /> : <p role="status" className="poster-loading">正在排版完整长图…</p>}
     </div>
   </dialog>;
 }
 
 function Intel({ query, setQuery, questions: filtered }: { query: string; setQuery: (v: string) => void; questions: typeof questions }) {
   const [mode, setMode] = useState<'latest' | 'archive'>('latest');
-  const [selectedDay, setSelectedDay] = useState('day3');
+  const [selectedDay, setSelectedDay] = useState(archiveIssues[0].day.toLowerCase().replace(' ', ''));
   const selected = archiveIssues.find(x => x.day.toLowerCase().replace(' ', '') === selectedDay) ?? archiveIssues[0];
-  return <div className="page-enter"><section className="page-header"><p className="eyebrow">每天一期 · 根据当天群聊动态编排</p><h1 className="page-title">每日情报</h1><p>从四个航海群的真实讨论中生成章节，连续读完当天进展，也可以直接查找具体问题。</p></section>
+  return <div className="page-enter"><section className="page-header"><p className="eyebrow">每天一期 · 根据当天群聊动态编排</p><h1 className="page-title">每日情报</h1><p>先看重点，按问题查找，再照着步骤行动。</p></section>
     <div className="subnav"><button className={mode === 'latest' ? 'active' : ''} onClick={() => setMode('latest')}>最新情报</button><button className={mode === 'archive' ? 'active' : ''} onClick={() => setMode('archive')}>往期情报 <span>Day 0—4</span></button></div>
-    <details className="update-policy"><summary>这份情报怎样更新</summary><div><p><strong>先尽量收全：</strong>事实、具体问题、有效回答、失败过程、实操方法和真实结果，即使只出现一次也进入候选。</p><p><strong>再按当天讨论成章：</strong>不预设固定栏目，把同一问题的提问、追问、教练回答与后续验证串在一起。</p><p><strong>公开前人工核对：</strong>工作数据每 30 分钟增量拉取；公开版计划在 12:00、18:00、22:30 审核更新，不把未核验推断写成结论。</p></div></details>
     <div className="relative mt-7 lg:hidden"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-black/40" /><Input value={query} onChange={e => setQuery(e.target.value)} className="h-11 rounded-lg border-black/15 pl-9" placeholder="搜索问题" /></div>
     {mode === 'archive' ? <Archive selected={selected} selectedDay={selectedDay} setSelectedDay={setSelectedDay} /> : query.trim() ? <SearchResults questions={filtered} /> : <DailyMagazine />}
   </div>;
 }
 
-function DailyMagazine({ issue = dailyIssue }: { issue?: (typeof archiveIssues)[number] }) {
+function DailyMagazine({ issue = dailyIssue }: { issue?: Issue }) {
   const [shareOpen, setShareOpen] = useState(false);
   return <div className="magazine-layout">
     <section className="mobile-intel-snapshot">
@@ -213,16 +134,17 @@ function DailyMagazine({ issue = dailyIssue }: { issue?: (typeof archiveIssues)[
       <ul>{issue.briefing.slice(0, 3).map(item => <li key={item}>{item}</li>)}</ul>
       <div>{issue.metrics.map(item => <span key={item}>{item}</span>)}</div>
     </section>
-    <details className="mobile-toc">
-      <summary>查看本期目录与全局信息</summary>
+    <details className="mobile-toc" open>
+      <summary>按问题找章节</summary>
       <nav>{issue.chapters.map(chapter => <a key={chapter.id} href={`#${chapter.id}`}><span>{chapter.number}</span><strong>{chapter.title}</strong><small>{chapter.count}</small></a>)}</nav>
     </details>
     <aside className="magazine-index"><p className="aside-title">本期目录</p><nav>{issue.chapters.map(chapter => <a key={chapter.id} href={`#${chapter.id}`}><span>{chapter.number}</span><strong>{chapter.title}</strong><small>{chapter.count}</small></a>)}</nav><div className="coverage"><strong>本期覆盖</strong><span>4 个航海群</span><span>更新至 {issue.updatedAt}</span></div></aside>
     <article className="magazine-story">
       <header className="issue-cover"><div className="issue-cover-top"><p>{issue.day} · {issue.date}</p><button onClick={() => setShareOpen(true)}><Share2 />分享这期图片</button></div><h2>{issue.title}</h2><div className="issue-dek">{issue.dek}</div><div className="issue-metrics">{issue.metrics.map(item => <span key={item}>{item}</span>)}</div></header>
-      {'lanes' in issue && <section className="lane-section mt-8 border-y border-black/10 py-7"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="section-kicker">本期情报分配</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">7 类信息，一个都不漏</h2></div><span className="text-xs text-black/40">点击直达对应章节</span></div><div className="grid gap-px overflow-hidden rounded-xl border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3">{issue.lanes.map(lane => <a className="bg-white p-5 transition hover:bg-[#f3f8f5]" href={`#${lane.target}`} key={lane.kind}><div className="flex items-center justify-between gap-3"><strong className="text-sm">{lane.kind}</strong><span className="text-xs font-medium text-[#0f6b43]">{lane.count}</span></div><p className="mt-3 text-sm leading-6 text-black/55">{lane.summary}</p></a>)}</div></section>}
+      {'lanes' in issue && <section className="lane-section mt-8 border-y border-black/10 py-7"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="section-kicker">本期情报分配</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">本期阅读目录</h2></div><span className="text-xs text-black/40">点击直达对应章节</span></div><div className="grid gap-px overflow-hidden rounded-xl border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3">{issue.lanes.map(lane => <a className="bg-white p-5 transition hover:bg-[#f3f8f5]" href={`#${lane.target}`} key={lane.kind}><div className="flex items-center justify-between gap-3"><strong className="text-sm">{lane.kind}</strong><span className="text-xs font-medium text-[#0f6b43]">{lane.count}</span></div><p className="mt-3 text-sm leading-6 text-black/55">{lane.summary}</p></a>)}</div></section>}
       <section className="issue-brief"><div><Sparkles /><span>30 秒导读</span></div><ul>{issue.briefing.map(item => <li key={item}>{item}</li>)}</ul></section>
-      {issue.chapters.map(chapter => <section className="story-chapter" id={chapter.id} key={chapter.id}><div className="chapter-number">{chapter.number}</div><header><p>{chapter.count}</p><h2>{chapter.title}</h2><div className="chapter-lead">{chapter.lead}</div></header><div className="chapter-sections">{chapter.sections.map(section => <section key={section.label}><h3>{section.label}</h3><p>{section.text}</p></section>)}</div><div className="chapter-action"><span>现在可以怎么做</span><ol>{chapter.actions.map((action, index) => <li key={action}><b>{index + 1}</b>{action}</li>)}</ol></div><footer>本章来源：{chapter.sources}</footer></section>)}
+      {issue.chapters.map(chapter => <section className="story-chapter" id={chapter.id} key={chapter.id}><div className="chapter-number">{chapter.number}</div><header><h2>{chapter.title}</h2><div className="chapter-lead">{chapter.lead}</div></header><div className="chapter-action"><span>接下来怎么做</span><ol>{chapter.actions.map((action, index) => <li key={action}><b>{index + 1}</b>{action}</li>)}</ol></div><details className="chapter-detail" open><summary>具体说明与适用条件 · {chapter.sections.length} 项</summary><div className="chapter-sections">{chapter.sections.map(section => <section key={section.label}><h3>{section.label}</h3><p>{section.text}</p></section>)}</div></details><footer>本章来源：{chapter.sources}</footer></section>)}
+
       {shareOpen && <ShareCard issue={issue} onClose={() => setShareOpen(false)} />}
     </article>
   </div>;
@@ -232,6 +154,6 @@ function SearchResults({ questions: results }: { questions: typeof questions }) 
   return <section className="search-results"><div className="section-heading"><div><p className="section-kicker">搜索结果</p><h2>找到 {results.length} 个相关答案</h2></div></div>{results.length ? <div>{results.map(item => <article key={item.q}><span>{item.topic}</span><h3>{item.q}</h3><p>{item.a}</p><footer>{item.by} · {item.source}</footer></article>)}</div> : <p className="empty-search">没有找到相关内容，可以换一个更短的关键词。</p>}</section>;
 }
 
-function Archive({ selected, selectedDay, setSelectedDay }: { selected: (typeof archiveIssues)[number]; selectedDay: string; setSelectedDay: (id: string) => void }) {
+function Archive({ selected, selectedDay, setSelectedDay }: { selected: Issue; selectedDay: string; setSelectedDay: (id: string) => void }) {
   return <section className="full-archive"><div className="date-switcher" aria-label="往期日期">{archiveIssues.map(issue => { const id = issue.day.toLowerCase().replace(' ', ''); return <button key={id} onClick={() => setSelectedDay(id)} className={selectedDay === id ? 'active' : ''}><strong>{issue.day}</strong><span>{issue.date.replace('2026 年 ', '')}</span></button>; })}</div><DailyMagazine issue={selected} /></section>;
 }
