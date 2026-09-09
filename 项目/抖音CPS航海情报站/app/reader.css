@@ -1,0 +1,68 @@
+/* 阅读版的独立作用域，避免历史样式继续影响首屏和正文。 */
+.reader-app { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #172d21; }
+.reader-app > header > div { max-width: 1160px; }
+.reader-app > div { max-width: 1160px; }
+.reader-app .tab-button { font-size: 17px; min-height: 48px; padding: 10px 24px; color: #526158; }
+.reader-app .tab-button.active { color: #0f5132; background: #eaf4ee; }
+.home-reading { max-width: 960px; margin: auto; }
+.reading-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: #53645a; font-size: 13px; }
+.reading-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 14px 0; }
+.reading-heading h1 { font-size: 32px; font-weight: 700; line-height: 1.4; }
+.reader-app .share-trigger { min-height: 44px; font-size: 14px; }
+.voyage-strip { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0; border-block: 1px solid #e0e8e2; color: #415649; font-size: 14px; }
+.voyage-strip b { color: #0f5132; }
+.reading-intro { font-size: 16px; line-height: 1.8; margin: 18px 0; color: #53645a; }
+.priority-stories { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+.priority-stories article { padding: 24px; border: 1px solid #dce6df; border-radius: 14px; }
+.priority-stories .story-label { font-size: 13px; font-weight: 600; color: #0f6840; margin: 0 0 10px; }
+.priority-stories h2 { font-size: 22px; font-weight: 650; line-height: 1.5; margin-bottom: 12px; }
+.priority-stories article > p:not(.story-label) { font-size: 16px; line-height: 1.85; color: #344d3f; }
+.next-step { margin-top: 18px; padding: 14px; background: #f1f7f3; border-radius: 8px; }
+.next-step strong { font-size: 13px; color: #0f5132; }
+.next-step p { margin-top: 5px; font-size: 16px; line-height: 1.75; }
+.priority-stories button { min-height: 48px; display: flex; align-items: center; gap: 8px; font-size: 15px; color: #0f5132; margin-top: 12px; text-align: left; }
+.priority-stories button svg { width: 16px; }
+.topic-directory { margin-top: 32px; }
+.topic-directory h2 { font-size: 22px; font-weight: 650; }
+.topic-directory > p { font-size: 15px; color: #53645a; margin: 8px 0 14px; }
+.topic-directory button { display: flex; width: 100%; align-items: center; gap: 12px; padding: 18px 0; text-align: left; border-bottom: 1px solid #e0e8e2; }
+.topic-directory button span { font-size: 13px; color: #0f6840; }
+.topic-directory button strong { flex: 1; font-size: 16px; line-height: 1.7; font-weight: 550; }
+.topic-directory button svg { width: 18px; flex-shrink: 0; }
+.reading-footer { margin-top: 28px; color: #596b60; font-size: 13px; line-height: 1.8; }
+.reader-app .page-title { font-size: 30px; line-height: 1.4; }
+.reader-app .issue-cover h2 { font-family: inherit; font-size: 32px; line-height: 1.5; }
+.reader-app .lane-section { display: none; }
+.reader-app .story-chapter > header h2 { font-family: inherit; font-size: 25px; line-height: 1.5; }
+.reader-app .chapter-sections p, .reader-app .chapter-lead, .reader-app .chapter-action li, .reader-app .search-results article p { font-size: 17px; line-height: 1.85; color: #34473c; }
+.reader-app .chapter-action ol { grid-template-columns: minmax(0,1fr); }
+.reader-app .chapter-sections h3 { font-size: 18px; line-height: 1.6; }
+.reader-app .story-chapter > footer { font-size: 13px; color: #596b60; }
+.reader-app button:focus-visible, .reader-app a:focus-visible, .reader-app summary:focus-visible { outline: 3px solid #168554; outline-offset: 3px; }
+@media(max-width: 767px) {
+  .reader-app > header > div { padding: 10px 16px 0; gap: 10px; }
+  .reader-app > header nav { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding-bottom: 0; }
+  .reader-app .tab-button { width: 100%; border-radius: 0; border-bottom: 3px solid transparent; margin: 0; font-size: 17px; }
+  .reader-app .tab-button.active { border-bottom-color: #0f6840; }
+  .reader-app > div { padding: 18px 16px 40px !important; }
+  .reading-heading h1 { font-size: 26px; }
+  .reading-meta { font-size: 12px; }
+  .reading-heading { margin: 10px 0; }
+  .voyage-strip { padding: 10px 0; font-size: 13px; gap: 6px 12px; }
+  .reading-intro { margin: 14px 0; font-size: 15px; }
+  .priority-stories { grid-template-columns: minmax(0,1fr); gap: 16px; }
+  .priority-stories article { padding: 18px; }
+  .priority-stories h2 { font-size: 21px; margin-bottom: 8px; }
+  .priority-stories article > p:not(.story-label) { font-size: 17px; }
+  .reader-app .page-header { padding-bottom: 12px; }
+  .reader-app .page-header > p:last-child { margin-top: 6px; font-size: 15px; }
+  .reader-app .subnav { margin: 12px 0 0; }
+  .reader-app .subnav button { min-height: 44px; font-size: 15px; }
+  .reader-app .mobile-intel-snapshot h2 { font-size: 22px; line-height: 1.5; margin-top: 12px; }
+  .issue-reading-note { font-size: 14px; line-height: 1.8; color: #53645a; margin-top: 10px; }
+  .reader-app .mobile-toc summary { font-size: 16px; }
+  .reader-app .mobile-toc a strong { font-size: 16px; }
+  .reader-app .story-chapter { padding: 24px 0; }
+  .reader-app .story-chapter > header h2 { font-size: 23px; }
+  .reader-app .chapter-detail > summary { font-size: 15px; }
+}

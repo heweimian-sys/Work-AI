@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, ChevronRight, Clock3, Download, Search, Share2, Ship, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, Download, Search, Share2, Ship, Sparkles, X } from 'lucide-react';
 import { createPoster, type Issue } from './poster';
 import { Input } from '@/components/ui/input';
 import { archiveIssues, dailyIssue, questions } from '@/content/site-data';
@@ -9,8 +9,8 @@ import { archiveIssues, dailyIssue, questions } from '@/content/site-data';
 type Tab = 'overview' | 'intel';
 
 const tabs: { id: Tab; label: string }[] = [
-  { id: 'overview', label: '今日概览' },
-  { id: 'intel', label: '每日情报' },
+  { id: 'overview', label: '今日重点' },
+  { id: 'intel', label: '情报全文' },
 ];
 
 
@@ -20,7 +20,7 @@ export default function Home() {
   const filteredQuestions = useMemo(() => questions.filter(x => `${x.q}${x.a}${x.topic}`.includes(query.trim())), [query]);
 
   return (
-    <main className="min-h-screen bg-white text-[#101814]">
+    <main className="reader-app min-h-screen bg-white text-[#101814]" data-version="reader-v3">
       <header className="sticky top-0 z-30 border-b border-black/10 bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-[1400px] flex-wrap items-center gap-x-8 gap-y-3 px-5 py-3 lg:px-10">
           <button className="flex items-center gap-2.5 text-left" onClick={() => setActive('overview')}>
@@ -28,7 +28,7 @@ export default function Home() {
             <span className="font-semibold tracking-tight">抖音 CPS · 五期航海</span>
           </button>
           <nav className="order-3 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto" aria-label="主要页面">
-            {tabs.map(tab => <button key={tab.id} onClick={() => setActive(tab.id)} className={`tab-button ${active === tab.id ? 'active' : ''}`}>{tab.label}</button>)}
+            {tabs.map(tab => <button key={tab.id} aria-current={active === tab.id ? 'page' : undefined} onClick={() => { setActive(tab.id); window.scrollTo(0, 0); }} className={`tab-button ${active === tab.id ? 'active' : ''}`}>{tab.label}</button>)}
           </nav>
           <div className="relative ml-auto hidden w-[290px] lg:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-black/40" />
@@ -47,33 +47,22 @@ export default function Home() {
 
 function Overview({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const [shareOpen, setShareOpen] = useState(false);
-  return <div className="page-enter">
-    <section className="flex flex-wrap items-end justify-between gap-6 border-b border-black/10 pb-7">
-      <div><p className="eyebrow">2026 年 9 月 9 日 · 星期三</p><h1 className="page-title">今日航海概览</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-black/55">今晚 20:00 直播讲流量排查。已经发布内容的船员，先准备作品数据和平台提示；遇到跳转、低播放或订单归因问题，可以按下面的专题查找。</p></div>
-      <div className="flex flex-wrap items-center gap-3"><div className="flex items-center gap-2 text-xs text-black/45"><span className="status-dot" />当前更新至 9 月 9 日 17:42</div><button className="share-trigger" onClick={() => setShareOpen(true)}><Share2 />分享本期情报</button></div>
+  function read(id: string) { onOpen('intel'); setTimeout(() => document.getElementById(id)?.scrollIntoView({behavior:'smooth'}), 100); }
+  const highlights = [
+    { title: '今晚直播提前到 20:00', body: '海宇讲流量排查与实操玩法。已发过作品的船员，带上播放数据、平台提示和跳转问题。', action: '准备 1—3 条作品的数据和问题截图', target: 'day5-notices', label: '时间变化' },
+    { title: '播放低，先检查再判断', body: '群内建议先看平台提示并观察约 6 小时；买药图文也有低播放成交样本，不能只用播放量判断效果。', action: '一起记录播放、提示和订单，再看处理方法', target: 'day5-highlights', label: '发布之后' },
+    { title: '订单来自哪里，用推广位区分', body: '多个账号或活动共用推广位，容易分不清订单来源。推广位用于统计，不决定口令是否有效。', action: '按需要追踪的活动或账号分别建推广位', target: 'day5-resources', label: '查看结果' },
+  ];
+  return <div className="home-reading">
+    <div className="reading-meta"><span>{dailyIssue.date} · {dailyIssue.day}</span><span>更新至 {dailyIssue.updatedAt}</span></div>
+    <div className="reading-heading"><h1>今日重点</h1><button className="share-trigger" onClick={() => setShareOpen(true)}><Share2 />分享图片</button></div>
+    <div className="voyage-strip"><span><b>{dailyIssue.day}</b> 航行中</span><span>当前：流量排查与订单追踪</span></div>
+    <p className="reading-intro">今天先关注这三件事，遇到具体问题再读完整说明。</p>
+    <section className="priority-stories" aria-label="今日重要变化">
+      {highlights.map((item, index) => <article key={item.target}><p className="story-label">0{index + 1} · {item.label}</p><h2>{item.title}</h2><p>{item.body}</p><div className="next-step"><strong>你可以先做</strong><p>{item.action}</p></div><button onClick={() => read(item.target)}>查看具体说明与条件 <ArrowUpRight /></button></article>)}
     </section>
-
-    <section className="grid border-b border-black/10 lg:grid-cols-[.7fr_1fr_1.35fr]">
-      <div className="metric-cell lg:border-r"><p className="metric-label">航行进度</p><p className="status-value">Day 5</p></div>
-      <div className="metric-cell lg:border-r"><p className="metric-label">当前阶段</p><p className="mt-2 text-lg font-semibold">流量排查与链路归因</p></div>
-      <div className="metric-cell"><p className="metric-label">下一个关键节点</p><p className="mt-2 text-lg font-semibold">今晚 20:00 高手领航直播</p></div>
-    </section>
-
-    <section className="overview-topics"><p className="section-kicker">按你现在遇到的事，直接开始</p>{dailyIssue.chapters.map(chapter => <button key={chapter.id} onClick={() => { onOpen('intel'); setTimeout(() => document.getElementById(chapter.id)?.scrollIntoView({behavior: 'smooth'}), 80); }}><span>{chapter.number}</span><div><strong>{chapter.title}</strong><p>{chapter.actions[0]}</p></div><ChevronRight /></button>)}</section>
-
-    <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-14">
-      <section><div className="section-heading"><div><p className="section-kicker">今日简报</p><h2>航海正在发生什么</h2></div><button onClick={() => onOpen('intel')}>查看全部情报 <ArrowUpRight /></button></div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <article className="brief-card"><span>01</span><h3>第二次高手领航提前到今晚</h3><p>9 月 9 日 20:00 企业微信直播，海宇分享“流量排查思路与实操玩法”。今天最好带着自己的作品数据、平台提示和口令跳转问题去听。</p></article>
-          <article className="brief-card"><span>02</span><h3>减少推荐今天有了更细的处理法</h3><p>第三方引导提示不等于封号；买药个位数播放也可能成交。先看提示原因、观察 6 小时，再决定是否隐藏或改新内容。</p></article>
-          <article className="brief-card"><span>03</span><h3>口令密令不只是“放进去”</h3><p>京东密令可以叠加使用；作品描述里的口令要放最前面；万能转链可以反复生成；推广位负责区分活动和账号数据。</p></article>
-          <article className="brief-card"><span>04</span><h3>素材和文案要开始去 AI 味、去同质化</h3><p>对标文案不能直接照搬，优惠数字要回会场核验，平台 logo/红包/搜索等画面元素要打码或换代称，素材最好自己截取。</p></article>
-        </div>
-      </section>
-      <aside className="timeline-panel"><div className="flex items-center justify-between"><p className="aside-title">今日更新时间轴</p><Clock3 className="size-4 text-black/35" /></div><ol className="timeline">
-        <li><time>17:42</time><span>确认目前没有统一外卖密令，可在推广活动生成外卖口令</span></li><li><time>17:20</time><span>多活动归因方案确认：按活动或账号单独建推广位</span></li><li><time>14:19</time><span>前两次直播已放到高手领航入口，后续回放一般 1—2 天上传</span></li><li><time>12:58</time><span>今晚 20:00 第二次高手领航直播，主题为流量排查</span></li>
-      </ol><div className="coverage"><strong>本版数据范围</strong><span>4 个航海群 · 9 月 8 日后增量</span><span>更新至 9 月 9 日 17:42</span><span>已完成七类情报分配</span></div></aside>
-    </div>
+    <section className="topic-directory"><h2>继续查找</h2><p>完整保留当天的操作细节、经验和结果。</p>{dailyIssue.chapters.map(chapter => <button key={chapter.id} onClick={() => read(chapter.id)}><span>{chapter.number}</span><strong>{chapter.title.split('：').slice(1).join('：') || chapter.title}</strong><ChevronRight /></button>)}</section>
+    <footer className="reading-footer">来源：本期 4 个航海群 · 本版更新至 {dailyIssue.date} {dailyIssue.updatedAt}<br/>群友实操经验保留适用条件，具体活动以平台当前页面为准。</footer>
     {shareOpen && <ShareCard issue={dailyIssue} onClose={() => setShareOpen(false)} />}
   </div>;
 }
@@ -118,10 +107,10 @@ function Intel({ query, setQuery, questions: filtered }: { query: string; setQue
   const [mode, setMode] = useState<'latest' | 'archive'>('latest');
   const [selectedDay, setSelectedDay] = useState(archiveIssues[0].day.toLowerCase().replace(' ', ''));
   const selected = archiveIssues.find(x => x.day.toLowerCase().replace(' ', '') === selectedDay) ?? archiveIssues[0];
-  return <div className="page-enter"><section className="page-header"><p className="eyebrow">每天一期 · 根据当天群聊动态编排</p><h1 className="page-title">每日情报</h1><p>先看重点，按问题查找，再照着步骤行动。</p></section>
+  return <div className="page-enter"><section className="page-header"><p className="eyebrow">每天一期 · 根据当天群聊动态编排</p><h1 className="page-title">情报全文</h1><p>先看重点，按问题查找，再照着步骤行动。</p></section>
     <div className="subnav"><button className={mode === 'latest' ? 'active' : ''} onClick={() => setMode('latest')}>最新情报</button><button className={mode === 'archive' ? 'active' : ''} onClick={() => setMode('archive')}>往期情报 <span>Day 0—4</span></button></div>
     <div className="relative mt-7 lg:hidden"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-black/40" /><Input value={query} onChange={e => setQuery(e.target.value)} className="h-11 rounded-lg border-black/15 pl-9" placeholder="搜索问题" /></div>
-    {mode === 'archive' ? <Archive selected={selected} selectedDay={selectedDay} setSelectedDay={setSelectedDay} /> : query.trim() ? <SearchResults questions={filtered} /> : <DailyMagazine />}
+    {query.trim() ? <SearchResults questions={filtered} /> : mode === 'archive' ? <Archive selected={selected} selectedDay={selectedDay} setSelectedDay={setSelectedDay} /> : <DailyMagazine />}
   </div>;
 }
 
@@ -131,10 +120,10 @@ function DailyMagazine({ issue = dailyIssue }: { issue?: Issue }) {
     <section className="mobile-intel-snapshot">
       <div><p>{issue.day} · {issue.date}</p><button onClick={() => setShareOpen(true)}><Share2 />分享图片</button></div>
       <h2>{issue.title}</h2>
-      <ul>{issue.briefing.slice(0, 3).map(item => <li key={item}>{item}</li>)}</ul>
+      <p className="issue-reading-note">{issue.chapters.length} 个章节 · 含操作步骤、适用条件与来源</p>
       <div>{issue.metrics.map(item => <span key={item}>{item}</span>)}</div>
     </section>
-    <details className="mobile-toc" open>
+    <details className="mobile-toc">
       <summary>按问题找章节</summary>
       <nav>{issue.chapters.map(chapter => <a key={chapter.id} href={`#${chapter.id}`}><span>{chapter.number}</span><strong>{chapter.title}</strong><small>{chapter.count}</small></a>)}</nav>
     </details>
