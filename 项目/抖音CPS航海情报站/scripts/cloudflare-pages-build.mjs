@@ -26,5 +26,6 @@ async function copyChildren(fromDir, toDir, options = {}) {
 await copyChildren(serverDir, distDir, { skip: new Set(["index.js"]) });
 await copyChildren(clientDir, distDir);
 await copyFile(join(serverDir, "index.js"), join(distDir, "_worker.js"));
+await copyFile(join(serverDir, "index.js"), join(distDir, "index.js"));
 
-console.log("Cloudflare Pages output ready: dist/_worker.js + merged assets");
+console.log("Cloudflare Pages output ready: dist/_worker.js + dist/index.js + merged assets");
