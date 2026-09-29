@@ -18,6 +18,13 @@ const groups = {
   supply_based: ['接单', '服务', '代做', '模板', '资料包', '课程', '自动化', 'AI服务', 'Agent', 'Skill'],
   ecosystem_change: ['平台规则', '新政策', '流量入口', '创作者计划', '生态']
 };
+const monetizationSignals = {
+  storefront: ['橱窗', '小黄车', '商品链接', '购买链接', '商品卡'],
+  advertising: ['广告', '赞助', '品牌合作', '商务合作', '推广'],
+  private_domain: ['加微信', '微信', '私域', '社群', '朋友圈', '公众号', '二维码'],
+  service: ['咨询', '代做', '定制', '接单', '服务费', '课程', '训练营', '会员', '订阅'],
+  affiliate: ['联盟', '分佣', '佣金', '推广链接', 'affiliate']
+};
 
 const hit = (text, words) => words.filter((word) => text.includes(word));
 const textOf = (record) => [record.title, record.text, record.detail?.body, record.comments?.map((item) => item.text).join(' ')].filter(Boolean).join('\n');
@@ -59,6 +66,10 @@ function triage(record) {
   const hasMoneyPath = matches.result_based.length > 0 || /卖|收费|付款|购买|订阅|佣金|广告|服务费/.test(text);
   const hasProcess = /流程|步骤|教程|实操|方法|怎么做|全流程|交付/.test(text);
   const hasOrdinaryEntry = /平台|AI|工具|模板|公开|零基础|低成本|代做|接单/.test(text);
+  const monetizationEvidence = Object.fromEntries(Object.entries(monetizationSignals).map(([type, words]) => [type, hit(text, words)]));
+  const monetizationTypes = Object.entries(monetizationEvidence).filter(([, words]) => words.length).map(([type]) => type);
+  const hasMonetizationEvidence = monetizationTypes.length > 0;
+  const reproducibility = hasProcess && hasOrdinaryEntry ? 'possible' : hasProcess || hasOrdinaryEntry ? 'needs_review' : 'unknown';
   const facts = [
     {statement: `来源平台为 ${record.platform || 'unknown'}`, source_url: sourceUrl(record), source_id: record.record_id || record.content_id},
     {statement: `内容标题为：${record.title || '未提供'}`, source_url: sourceUrl(record), source_id: record.record_id || record.content_id},
@@ -69,7 +80,7 @@ function triage(record) {
   if (!hasPayerSignal) unknowns.push({question: '谁是付费方？', next_possible_action: '采集评论、商品页或服务入口'});
   if (!hasMoneyPath) unknowns.push({question: '钱通过什么路径进入？', next_possible_action: '采集商品、服务页、私域入口或平台分成规则'});
   if (!hasProcess) unknowns.push({question: '普通人具体如何交付？', next_possible_action: '采集详情、评论和作者历史内容'});
-  const completeQuestions = hasAction && hasPayerSignal && hasMoneyPath;
+  const completeQuestions = hasAction && hasPayerSignal && hasMoneyPath && hasMonetizationEvidence;
   let triageStatus = 'signal_observation';
   let reason = '存在内容或商业信号，但三问未完整支持。';
   if (!commercial.length && !matches.platform_mechanism.length && !matches.ecosystem_change.length) {
@@ -90,9 +101,12 @@ function triage(record) {
     three_questions: {
       what_to_do: hasAction ? '有供给、服务或需求动作信号' : 'unknown',
       payer: hasPayerSignal ? '出现需求方或结果/收入信号' : 'unknown',
-      money_path: hasMoneyPath ? '出现成交、收费、佣金或收入路径信号' : 'unknown'
+      money_path: hasMoneyPath ? '出现成交、收费、佣金或收入路径信号' : 'unknown',
+      monetization_evidence: hasMonetizationEvidence ? `发现变现线索：${monetizationTypes.join('、')}` : '未发现橱窗、广告、服务或私域证据'
     },
-    ordinary_person_fit: hasOrdinaryEntry ? 'possible_pending_validation' : 'unknown',
+    ordinary_person_fit: reproducibility,
+    monetization_evidence: { types: monetizationTypes, terms: monetizationEvidence, verified: false },
+    screening_action: completeQuestions ? '进入人工审核' : '先保留，补采评论区、商品/广告/私域证据后再判断',
     current_stage: triageStatus === 'new_opportunity' ? 'research_queued' : 'radar_signal',
     triage: triageStatus,
     reason,

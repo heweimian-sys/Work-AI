@@ -39,6 +39,13 @@
     "has_product_or_service": {"enum": [true, false, "unknown"]},
     "has_case_or_result": {"enum": [true, false, "unknown"]},
     "has_reproducible_process": {"enum": [true, false, "unknown"]},
+    "ordinary_person_fit": {"enum": ["possible", "needs_review", "unknown", "yes", "no"]},
+    "monetization_evidence": {"type": "object", "properties": {
+      "types": {"type": "array", "items": {"type": "string"}},
+      "terms": {"type": "object"},
+      "verified": {"type": "boolean"}
+    }},
+    "screening_action": {"type": "string"},
     "commercial_activity_type": {"type": "array", "items": {"type": "string"}},
     "evidence_level": {"enum": ["L0", "L1", "L2", "L3", "unknown"]},
     "ai_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
