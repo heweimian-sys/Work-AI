@@ -64,6 +64,9 @@ document.getElementById('collect').addEventListener('click', async () => {
       const contentId = (href) => (href.match(/[?&]v=([a-zA-Z0-9_-]{6,})/) || href.match(/\/shorts\/([a-zA-Z0-9_-]+)/) || href.match(/\/explore\/([a-zA-Z0-9_-]+)/) || href.match(/[?&](?:note_id|id)=([a-zA-Z0-9_-]+)/))?.[1] || null;
       const firstText = (root, selectors) => { for (const selector of selectors) { const node = root.querySelector(selector); if (node?.textContent?.trim()) return clean(node.textContent); } return null; };
       const isWatchPage = platform === 'youtube' && /\/watch\?/.test(location.href);
+      if (isWatchPage) {
+        throw new Error('当前是 YouTube 单条观看页。请返回搜索结果页、频道视频页或首页，再使用“采集当前页 / 列表内容”。');
+      }
       if (platform === 'youtube' && !isWatchPage) {
         // YouTube uses infinite scroll; load several viewport batches before reading cards.
         for (let i = 0; i < 6; i += 1) {
@@ -80,12 +83,10 @@ document.getElementById('collect').addEventListener('click', async () => {
         const value = Number(match[1]) * (match[2] === '万' ? 10000 : match[2] === '千' ? 1000 : 1);
         return Number.isFinite(value) ? value : null;
       };
-      const selectors = isWatchPage
-        ? 'meta[itemprop="videoId"], #title h1, h1.ytd-watch-metadata'
-        : platform === 'bilibili'
+      const selectors = platform === 'bilibili'
         ? 'a[href*="/video/"]'
         : platform === 'youtube'
-          ? 'a#video-title, a[href*="/watch?v="]'
+          ? 'ytd-video-renderer, ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytd-playlist-video-renderer'
           : platform === 'xiaohongshu'
             ? 'a[href*="/explore/"]'
             : platform === 'x'
@@ -99,7 +100,9 @@ document.getElementById('collect').addEventListener('click', async () => {
           ? (matchedElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytd-playlist-video-renderer') || matchedElement)
           : matchedElement;
         const href = link?.href || location.href;
-        const key = href.split('?')[0];
+        const absoluteHref = absolute(href);
+        const extractedContentId = contentId(absoluteHref);
+        const key = extractedContentId ? `${platform}:${extractedContentId}` : absoluteHref.split('?')[0];
         if (seen.has(key) || (platform !== 'x' && key === location.href.split('?')[0])) continue;
         const title = clean(link?.getAttribute('title') || link?.textContent || element.textContent);
         if (!title || title.length < 2) continue;
@@ -112,7 +115,7 @@ document.getElementById('collect').addEventListener('click', async () => {
         const hashtags = [...elementText.matchAll(/#[^#\s]{1,40}/g)].map((match) => match[0]).slice(0, 30);
         const images = [...element.querySelectorAll('img[src], img[data-src]')].map((node) => node.currentSrc || node.src || node.dataset.src).filter(Boolean).slice(0, 30);
         const videos = [...element.querySelectorAll('video[src], source[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10);
-        records.push({ platform, content_id: contentId(absolute(href)), content_url: absolute(href), title: title.slice(0, 500), text: elementText.slice(0, 12000), collected_at: new Date().toISOString(), metrics, media: { image_urls: images, video_urls: videos }, author_name: firstText(element, ['#channel-name a', 'ytd-channel-name a', '.author', '[class*="author"]', '[class*="user"]']), detail: { body: elementText.slice(0, 20000), hashtags, author_home_url: element.querySelector('#channel-name a, ytd-channel-name a')?.href || null, product_or_service_url: null, snapshot_path: null }, comments: [], ai_analysis: { summary: null, what_to_do: null, payer: null, money_path: null, facts: [], inferences: [], unknowns: [], ordinary_person_fit: 'unknown', triage: 'unknown', model: null } });
+        records.push({ platform, content_id: extractedContentId, content_url: absoluteHref, title: title.slice(0, 500), text: elementText.slice(0, 12000), collected_at: new Date().toISOString(), metrics, media: { image_urls: images, video_urls: videos }, author_name: firstText(element, ['#channel-name a', 'ytd-channel-name a', '.author', '[class*="author"]', '[class*="user"]']), detail: { body: elementText.slice(0, 20000), hashtags, author_home_url: element.querySelector('#channel-name a, ytd-channel-name a')?.href || null, product_or_service_url: null, snapshot_path: null }, comments: [], ai_analysis: { summary: null, what_to_do: null, payer: null, money_path: null, facts: [], inferences: [], unknowns: [], ordinary_person_fit: 'unknown', triage: 'unknown', model: null } });
         if (records.length >= 100) break;
       }
       if (!records.length) records.push({ platform, content_id: contentId(location.href), content_url: location.href, title: document.title, text: clean(document.body?.innerText).slice(0, 30000), collected_at: new Date().toISOString(), media: { image_urls: [...document.images].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 30), video_urls: [...document.querySelectorAll('video[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10) } });
