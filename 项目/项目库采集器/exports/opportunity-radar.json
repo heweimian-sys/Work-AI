@@ -1,6 +1,88 @@
 {
-  "generated_at": "2026-09-29T06:25:43.810Z",
+  "generated_at": "2026-09-29T06:30:53.107Z",
   "input_count": 4,
+  "cluster_count": 4,
+  "clusters": [
+    {
+      "cluster_id": "cluster-1",
+      "title": "AI Agents接单实战2026：用n8n给海外小企业搭自动化工作流，Upwork公开时薪35-60美元",
+      "lead_ids": [
+        "opp-pilot-PILOT-20260921-001"
+      ],
+      "source_ids": [
+        "pilot-PILOT-20260921-001"
+      ],
+      "source_urls": [
+        "https://www.bilibili.com/video/BV1dJKN6xE7G"
+      ],
+      "platforms": [
+        "bilibili"
+      ],
+      "signal_types": [
+        "result_based",
+        "platform_mechanism",
+        "demand_based",
+        "supply_based"
+      ],
+      "independent_source_count": 1
+    },
+    {
+      "cluster_id": "cluster-2",
+      "title": "小白如何入行：不良资产服务费",
+      "lead_ids": [
+        "opp-pilot-PILOT-20260921-002"
+      ],
+      "source_ids": [
+        "pilot-PILOT-20260921-002"
+      ],
+      "source_urls": [
+        "https://www.douyin.com/shipin/7343154330683312182"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "signal_types": [
+        "supply_based"
+      ],
+      "independent_source_count": 1
+    },
+    {
+      "cluster_id": "cluster-3",
+      "title": "How I Scaled My First AI UGC Campaign to $100k with Affiliate Network",
+      "lead_ids": [
+        "opp-pilot-PILOT-20260921-003"
+      ],
+      "source_ids": [
+        "pilot-PILOT-20260921-003"
+      ],
+      "source_urls": [
+        "https://x.com/johnvirality/status/2036444247486853261"
+      ],
+      "platforms": [
+        "x"
+      ],
+      "signal_types": [],
+      "independent_source_count": 1
+    },
+    {
+      "cluster_id": "cluster-4",
+      "title": "sample",
+      "lead_ids": [
+        "opp-sample-remove-me"
+      ],
+      "source_ids": [
+        "sample-remove-me"
+      ],
+      "source_urls": [
+        "https://example.com"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "signal_types": [],
+      "independent_source_count": 1
+    }
+  ],
   "leads": [
     {
       "opportunity_id": "opp-pilot-PILOT-20260921-001",
@@ -129,7 +211,11 @@
       "research_ready": false,
       "income_verified": false,
       "collected_at": "2026-09-28T13:08:18.714Z",
-      "generated_at": "2026-09-29T06:25:43.810Z"
+      "generated_at": "2026-09-29T06:30:53.107Z",
+      "cluster_id": "cluster-1",
+      "independent_source_count": 1,
+      "priority_score": 85,
+      "priority_reason": "当前只有单一来源，不能作为趋势或收入证明。"
     },
     {
       "opportunity_id": "opp-pilot-PILOT-20260921-002",
@@ -209,7 +295,11 @@
       "research_ready": false,
       "income_verified": false,
       "collected_at": "2026-09-28T13:08:23.864Z",
-      "generated_at": "2026-09-29T06:25:43.810Z"
+      "generated_at": "2026-09-29T06:30:53.107Z",
+      "cluster_id": "cluster-2",
+      "independent_source_count": 1,
+      "priority_score": 45,
+      "priority_reason": "当前只有单一来源，不能作为趋势或收入证明。"
     },
     {
       "opportunity_id": "opp-pilot-PILOT-20260921-003",
@@ -289,7 +379,11 @@
       "research_ready": false,
       "income_verified": false,
       "collected_at": "2026-09-28T13:08:28.850Z",
-      "generated_at": "2026-09-29T06:25:43.810Z"
+      "generated_at": "2026-09-29T06:30:53.107Z",
+      "cluster_id": "cluster-3",
+      "independent_source_count": 1,
+      "priority_score": 20,
+      "priority_reason": "当前只有单一来源，不能作为趋势或收入证明。"
     },
     {
       "opportunity_id": "opp-sample-remove-me",
@@ -374,7 +468,11 @@
       "research_ready": false,
       "income_verified": false,
       "collected_at": "2026-09-28T13:08:14.076Z",
-      "generated_at": "2026-09-29T06:25:43.810Z"
+      "generated_at": "2026-09-29T06:30:53.107Z",
+      "cluster_id": "cluster-4",
+      "independent_source_count": 1,
+      "priority_score": 10,
+      "priority_reason": "当前只有单一来源，不能作为趋势或收入证明。"
     }
   ]
 }

@@ -22,6 +22,22 @@ const groups = {
 const hit = (text, words) => words.filter((word) => text.includes(word));
 const textOf = (record) => [record.title, record.text, record.detail?.body, record.comments?.map((item) => item.text).join(' ')].filter(Boolean).join('\n');
 const sourceUrl = (record) => record.content_url || null;
+const tokens = (text) => {
+  const normalized = String(text || '').toLowerCase().replace(/[^\u4e00-\u9fff\w]+/g, ' ');
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  const grams = [];
+  for (const part of parts) {
+    if (/^[\u4e00-\u9fff]+$/.test(part)) for (let i = 0; i < part.length - 1; i += 1) grams.push(part.slice(i, i + 2));
+    else grams.push(part);
+  }
+  return new Set(grams);
+};
+const similarity = (left, right) => {
+  const a = tokens(left); const b = tokens(right);
+  if (!a.size || !b.size) return 0;
+  let shared = 0; for (const item of a) if (b.has(item)) shared += 1;
+  return shared / (a.size + b.size - shared);
+};
 
 async function readRecords() {
   const files = (await fs.readdir(inbox)).filter((file) => file.endsWith('.json'));
@@ -92,9 +108,42 @@ function triage(record) {
   };
 }
 
+function clusterLeads(leads) {
+  const clusters = [];
+  for (const lead of leads) {
+    const candidate = clusters.find((cluster) => {
+      const sameSignal = lead.signal_types.some((type) => cluster.signal_types.includes(type));
+      return sameSignal && similarity(lead.title, cluster.title) >= 0.22;
+    });
+    if (candidate) {
+      candidate.lead_ids.push(lead.opportunity_id);
+      candidate.source_ids.push(...lead.source_ids);
+      candidate.source_urls.push(...lead.source_urls);
+      candidate.platforms.push(lead.platform);
+      candidate.signal_types = [...new Set([...candidate.signal_types, ...lead.signal_types])];
+    } else {
+      clusters.push({cluster_id: `cluster-${clusters.length + 1}`, title: lead.title, lead_ids: [lead.opportunity_id], source_ids: [...lead.source_ids], source_urls: [...lead.source_urls], platforms: [lead.platform], signal_types: [...lead.signal_types]});
+    }
+  }
+  return clusters.map((cluster) => ({...cluster, source_ids: [...new Set(cluster.source_ids)], source_urls: [...new Set(cluster.source_urls)], platforms: [...new Set(cluster.platforms)], independent_source_count: new Set(cluster.source_ids).size}));
+}
+
 const records = await readRecords();
 const leads = records.map(triage);
+const clusters = clusterLeads(leads);
+for (const lead of leads) {
+  const cluster = clusters.find((item) => item.lead_ids.includes(lead.opportunity_id));
+  lead.cluster_id = cluster.cluster_id;
+  lead.independent_source_count = cluster.independent_source_count;
+  lead.priority_score = Math.min(100, (lead.triage === 'new_opportunity' ? 45 : lead.triage === 'signal_observation' ? 20 : 0) + Math.min(25, lead.signal_types.length * 5) + Math.min(20, cluster.independent_source_count * 10) + (lead.ordinary_person_fit === 'possible_pending_validation' ? 10 : 0));
+  lead.priority_reason = cluster.independent_source_count > 1 ? '多个独立来源或记录聚合，优先复核。' : '当前只有单一来源，不能作为趋势或收入证明。';
+}
+leads.sort((a, b) => b.priority_score - a.priority_score);
 await fs.mkdir(exportsDir, {recursive: true});
-await fs.writeFile(path.join(exportsDir, 'opportunity-radar.json'), JSON.stringify({generated_at: now, input_count: records.length, leads}, null, 2));
+await fs.writeFile(path.join(exportsDir, 'opportunity-radar.json'), JSON.stringify({generated_at: now, input_count: records.length, cluster_count: clusters.length, clusters, leads}, null, 2));
+await fs.writeFile(path.join(exportsDir, 'opportunity-daily.md'), [
+  '# 项目机会日报', '', `生成时间：${now}`, `输入记录：${records.length}`, `机会簇：${clusters.length}`, '',
+  ...leads.slice(0, 20).map((lead, index) => `## ${index + 1}. ${lead.title}\n- 分流：${lead.triage}\n- 优先级：${lead.priority_score}\n- 三问：做什么=${lead.three_questions.what_to_do}；谁付费=${lead.three_questions.payer}；钱怎么进=${lead.three_questions.money_path}\n- 来源：${lead.source_urls.join('、') || '未提供'}\n- 下一步：${lead.unknowns.map((item) => item.next_possible_action).join('；') || '进入定向 Research'}`)
+].join('\n\n'));
 const summary = leads.reduce((result, lead) => { result[lead.triage] = (result[lead.triage] || 0) + 1; return result; }, {});
-console.log(JSON.stringify({input_count: records.length, summary, output: 'exports/opportunity-radar.json'}, null, 2));
+console.log(JSON.stringify({input_count: records.length, cluster_count: clusters.length, summary, outputs: ['exports/opportunity-radar.json', 'exports/opportunity-daily.md']}, null, 2));
