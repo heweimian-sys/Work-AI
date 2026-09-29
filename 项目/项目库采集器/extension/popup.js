@@ -3,7 +3,19 @@ const say = (text, cls = '') => { status.textContent = text; status.className = 
 const notify = (title, message) => { try { chrome.notifications.create({type: 'basic', iconUrl: 'icon.svg', title, message}); } catch (_) {} };
 // 不在仓库保存飞书 Webhook。正式环境优先使用项目内的飞书 API 同步脚本。
 const FEISHU_WEBHOOK_URL = '';
+const FEISHU_TABLE_URL = 'https://shengcaiyoushu01.feishu.cn/wiki/Z2dMwIrP2i9ObKkV5pxczF3nnJh?table=tbl54NJzfSW4uQnq&view=vew47pHXDi';
 const inputValue = (id) => document.getElementById(id)?.value.trim() || '';
+const setBusy = (id, busy) => { const button = document.getElementById(id); if (button) { button.disabled = busy; button.dataset.originalText ||= button.textContent; button.textContent = busy ? '正在处理…' : button.dataset.originalText; } };
+async function refreshSummary() {
+  const saved = await chrome.storage.local.get({records: [], monitored_accounts: []});
+  const tab = await currentTab();
+  let responseCount = 0;
+  if (tab?.id) { try { responseCount = (await chrome.runtime.sendMessage({type: 'getNetworkResponses', tabId: tab.id}))?.responses?.length || 0; } catch (_) {} }
+  document.getElementById('recordCount').textContent = saved.records.length;
+  document.getElementById('unsentCount').textContent = saved.records.filter((item) => !item.feishu_synced_at).length;
+  document.getElementById('accountCount').textContent = saved.monitored_accounts.length;
+  document.getElementById('responseCount').textContent = responseCount;
+}
 const normalizeUrl = (value) => {
   try {
     const url = new URL(value);
@@ -37,6 +49,7 @@ async function networkResponses(tabId) {
 }
 
 document.getElementById('collect').addEventListener('click', async () => {
+  setBusy('collect', true);
   try {
     const tab = await currentTab();
     if (!tab?.id || !tab.url) throw new Error('没有找到当前网页');
@@ -107,7 +120,7 @@ document.getElementById('collect').addEventListener('click', async () => {
     await chrome.storage.local.set({ records });
     say(`已采集 ${uniqueIncoming.length} 条，已合并 ${observedNetworkEvents.length} 个网络观察${keyword ? `\n关键词：${keyword}` : ''}`, 'ok');
     notify('项目库采集完成', `本次新增 ${uniqueIncoming.length} 条，重复内容已忽略`);
-  } catch (error) { await chrome.storage.local.set({last_collection_error: {message: error.message, at: new Date().toISOString()}}); say(`采集失败：${error.message}`, 'err'); }
+  } catch (error) { await chrome.storage.local.set({last_collection_error: {message: error.message, at: new Date().toISOString()}}); say(`采集失败：${error.message}`, 'err'); } finally { setBusy('collect', false); await refreshSummary(); }
 });
 
 document.getElementById('collectKeyword').addEventListener('click', () => document.getElementById('collect').click());
@@ -127,6 +140,7 @@ document.getElementById('watchAccount').addEventListener('click', async () => {
 });
 
 document.getElementById('detail').addEventListener('click', async () => {
+  setBusy('detail', true);
   try {
     const tab = await currentTab();
     if (!tab?.id || !tab.url) throw new Error('没有找到当前网页');
@@ -160,7 +174,12 @@ document.getElementById('detail').addEventListener('click', async () => {
     await chrome.storage.local.set({records: [record, ...saved.records.filter((item) => item.dedupe_key !== record.dedupe_key)]});
     say(`已采集详情，评论 ${record.comments.length} 条\n平台：${record.platform}`, 'ok');
     notify('详情采集完成', `已采集正文和 ${record.comments.length} 条评论`);
-  } catch (error) { await chrome.storage.local.set({last_detail_error: {message: error.message, at: new Date().toISOString()}}); say(`详情采集失败：${error.message}`, 'err'); }
+  } catch (error) { await chrome.storage.local.set({last_detail_error: {message: error.message, at: new Date().toISOString()}}); say(`详情采集失败：${error.message}`, 'err'); } finally { setBusy('detail', false); await refreshSummary(); }
+});
+
+document.getElementById('openFeishu').addEventListener('click', async () => {
+  await chrome.tabs.create({url: FEISHU_TABLE_URL});
+  say('已打开飞书项目库收件箱，请在新标签页查看同步结果。', 'ok');
 });
 
 document.getElementById('download').addEventListener('click', async () => {
@@ -287,3 +306,5 @@ document.getElementById('sendFeishu').addEventListener('click', async () => {
   say(message, failed ? 'err' : 'ok');
   notify(failed ? '飞书写入部分失败' : '飞书写入完成', message);
 });
+
+refreshSummary().catch(() => {});
