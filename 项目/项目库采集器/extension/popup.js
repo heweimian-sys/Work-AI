@@ -3,6 +3,7 @@ const say = (text, cls = '') => { status.textContent = text; status.className = 
 const notify = (title, message) => { try { chrome.notifications.create({type: 'basic', iconUrl: 'icon.svg', title, message}); } catch (_) {} };
 // 不在仓库保存飞书 Webhook。正式环境优先使用项目内的飞书 API 同步脚本。
 const FEISHU_WEBHOOK_URL = '';
+const LOCAL_SYNC_URL = 'http://127.0.0.1:43127/sync';
 const FEISHU_TABLE_URL = 'https://shengcaiyoushu01.feishu.cn/wiki/Z2dMwIrP2i9ObKkV5pxczF3nnJh?table=tbl54NJzfSW4uQnq&view=vew47pHXDi';
 const inputValue = (id) => document.getElementById(id)?.value.trim() || '';
 const setBusy = (id, busy) => { const button = document.getElementById(id); if (button) { button.disabled = busy; button.dataset.originalText ||= button.textContent; button.textContent = busy ? '正在处理…' : button.dataset.originalText; } };
@@ -227,8 +228,19 @@ document.getElementById('sendFeishu').addEventListener('click', async () => {
   if (!FEISHU_WEBHOOK_URL) {
     const saved = await chrome.storage.local.get({ records: [] });
     const unsent = saved.records.filter((item) => !item.feishu_synced_at).length;
-    say(`当前内容已保存在本地收件箱（${unsent} 条待同步）。\n飞书直写尚未接通，所以这次不会写入飞书。请先运行项目内的同步程序。`, 'err');
-    notify('飞书同步尚未接通', `本地保留 ${unsent} 条内容，数据不会丢失`);
+    if (!unsent) return say('没有待同步内容', 'ok');
+    setBusy('sendFeishu', true);
+    try {
+      const response = await fetch(LOCAL_SYNC_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({records:saved.records.filter((item)=>!item.feishu_synced_at)})});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `本地同步服务返回 ${response.status}`);
+      const synced = new Set((saved.records.filter((item)=>!item.feishu_synced_at)).slice(0,result.success).map((item)=>item.record_id));
+      const updated = saved.records.map((item)=>synced.has(item.record_id)?{...item,feishu_synced_at:new Date().toISOString()}:item);
+      await chrome.storage.local.set({records:updated});
+      say(`已同步到飞书 ${result.success} 条${result.failed?`，失败 ${result.failed} 条`:''}`, result.failed?'err':'ok');
+      notify('飞书同步完成', `成功 ${result.success} 条`);
+    } catch (error) { say(`飞书同步失败：${error.message}\n请确认本机同步服务已启动。`, 'err'); notify('飞书同步失败', error.message); }
+    finally { setBusy('sendFeishu', false); await refreshSummary(); }
     return;
   }
   const saved = await chrome.storage.local.get({ records: [] });
