@@ -1,0 +1,380 @@
+{
+  "generated_at": "2026-09-29T06:25:43.810Z",
+  "input_count": 4,
+  "leads": [
+    {
+      "opportunity_id": "opp-pilot-PILOT-20260921-001",
+      "source_ids": [
+        "pilot-PILOT-20260921-001"
+      ],
+      "source_urls": [
+        "https://www.bilibili.com/video/BV1dJKN6xE7G"
+      ],
+      "platform": "bilibili",
+      "title": "AI Agents接单实战2026：用n8n给海外小企业搭自动化工作流，Upwork公开时薪35-60美元",
+      "signal_types": [
+        "result_based",
+        "platform_mechanism",
+        "demand_based",
+        "supply_based"
+      ],
+      "signal_terms": {
+        "result_based": [
+          "收入",
+          "佣金"
+        ],
+        "platform_mechanism": [
+          "奖励"
+        ],
+        "demand_based": [
+          "报价"
+        ],
+        "supply_based": [
+          "接单",
+          "服务",
+          "模板",
+          "自动化",
+          "Agent"
+        ],
+        "ecosystem_change": []
+      },
+      "three_questions": {
+        "what_to_do": "有供给、服务或需求动作信号",
+        "payer": "出现需求方或结果/收入信号",
+        "money_path": "出现成交、收费、佣金或收入路径信号"
+      },
+      "ordinary_person_fit": "possible_pending_validation",
+      "current_stage": "research_queued",
+      "triage": "new_opportunity",
+      "reason": "已有具体动作、潜在付费方和收入路径信号，可进入 Research；收入仍需独立验证。",
+      "facts": [
+        {
+          "statement": "来源平台为 bilibili",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001"
+        },
+        {
+          "statement": "内容标题为：AI Agents接单实战2026：用n8n给海外小企业搭自动化工作流，Upwork公开时薪35-60美元",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001"
+        },
+        {
+          "statement": "原文出现商业相关词：收入",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：佣金",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：报价",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：接单",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：服务",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：模板",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：自动化",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        },
+        {
+          "statement": "原文出现商业相关词：Agent",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "source_id": "pilot-PILOT-20260921-001",
+          "evidence_type": "keyword_signal"
+        }
+      ],
+      "inferences": [
+        {
+          "statement": "内容具备进入定向研究的商业线索",
+          "based_on_source_ids": [
+            "pilot-PILOT-20260921-001"
+          ],
+          "status": "hypothesis"
+        }
+      ],
+      "unknowns": [],
+      "evidence": [
+        {
+          "source_id": "pilot-PILOT-20260921-001",
+          "source_url": "https://www.bilibili.com/video/BV1dJKN6xE7G",
+          "raw_json_path": "inbox/pilot-PILOT-20260921-001.json",
+          "direct_or_inferred": "direct"
+        }
+      ],
+      "material_gaps": [],
+      "research_ready": false,
+      "income_verified": false,
+      "collected_at": "2026-09-28T13:08:18.714Z",
+      "generated_at": "2026-09-29T06:25:43.810Z"
+    },
+    {
+      "opportunity_id": "opp-pilot-PILOT-20260921-002",
+      "source_ids": [
+        "pilot-PILOT-20260921-002"
+      ],
+      "source_urls": [
+        "https://www.douyin.com/shipin/7343154330683312182"
+      ],
+      "platform": "web",
+      "title": "小白如何入行：不良资产服务费",
+      "signal_types": [
+        "supply_based"
+      ],
+      "signal_terms": {
+        "result_based": [],
+        "platform_mechanism": [],
+        "demand_based": [],
+        "supply_based": [
+          "服务"
+        ],
+        "ecosystem_change": []
+      },
+      "three_questions": {
+        "what_to_do": "有供给、服务或需求动作信号",
+        "payer": "unknown",
+        "money_path": "出现成交、收费、佣金或收入路径信号"
+      },
+      "ordinary_person_fit": "possible_pending_validation",
+      "current_stage": "radar_signal",
+      "triage": "signal_observation",
+      "reason": "存在内容或商业信号，但三问未完整支持。",
+      "facts": [
+        {
+          "statement": "来源平台为 web",
+          "source_url": "https://www.douyin.com/shipin/7343154330683312182",
+          "source_id": "pilot-PILOT-20260921-002"
+        },
+        {
+          "statement": "内容标题为：小白如何入行：不良资产服务费",
+          "source_url": "https://www.douyin.com/shipin/7343154330683312182",
+          "source_id": "pilot-PILOT-20260921-002"
+        },
+        {
+          "statement": "原文出现商业相关词：服务",
+          "source_url": "https://www.douyin.com/shipin/7343154330683312182",
+          "source_id": "pilot-PILOT-20260921-002",
+          "evidence_type": "keyword_signal"
+        }
+      ],
+      "inferences": [
+        {
+          "statement": "内容可能与机会有关，但不能仅凭本条升级为项目",
+          "based_on_source_ids": [
+            "pilot-PILOT-20260921-002"
+          ],
+          "status": "hypothesis"
+        }
+      ],
+      "unknowns": [
+        {
+          "question": "谁是付费方？",
+          "next_possible_action": "采集评论、商品页或服务入口"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "pilot-PILOT-20260921-002",
+          "source_url": "https://www.douyin.com/shipin/7343154330683312182",
+          "raw_json_path": "inbox/pilot-PILOT-20260921-002.json",
+          "direct_or_inferred": "direct"
+        }
+      ],
+      "material_gaps": [
+        "谁是付费方？"
+      ],
+      "research_ready": false,
+      "income_verified": false,
+      "collected_at": "2026-09-28T13:08:23.864Z",
+      "generated_at": "2026-09-29T06:25:43.810Z"
+    },
+    {
+      "opportunity_id": "opp-pilot-PILOT-20260921-003",
+      "source_ids": [
+        "pilot-PILOT-20260921-003"
+      ],
+      "source_urls": [
+        "https://x.com/johnvirality/status/2036444247486853261"
+      ],
+      "platform": "x",
+      "title": "How I Scaled My First AI UGC Campaign to $100k with Affiliate Network",
+      "signal_types": [],
+      "signal_terms": {
+        "result_based": [],
+        "platform_mechanism": [],
+        "demand_based": [],
+        "supply_based": [],
+        "ecosystem_change": []
+      },
+      "three_questions": {
+        "what_to_do": "unknown",
+        "payer": "unknown",
+        "money_path": "unknown"
+      },
+      "ordinary_person_fit": "possible_pending_validation",
+      "current_stage": "radar_signal",
+      "triage": "excluded",
+      "reason": "未发现可研究的供给、需求、平台机制或商业信号。",
+      "facts": [
+        {
+          "statement": "来源平台为 x",
+          "source_url": "https://x.com/johnvirality/status/2036444247486853261",
+          "source_id": "pilot-PILOT-20260921-003"
+        },
+        {
+          "statement": "内容标题为：How I Scaled My First AI UGC Campaign to $100k with Affiliate Network",
+          "source_url": "https://x.com/johnvirality/status/2036444247486853261",
+          "source_id": "pilot-PILOT-20260921-003"
+        }
+      ],
+      "inferences": [
+        {
+          "statement": "内容可能与机会有关，但不能仅凭本条升级为项目",
+          "based_on_source_ids": [
+            "pilot-PILOT-20260921-003"
+          ],
+          "status": "hypothesis"
+        }
+      ],
+      "unknowns": [
+        {
+          "question": "谁是付费方？",
+          "next_possible_action": "采集评论、商品页或服务入口"
+        },
+        {
+          "question": "钱通过什么路径进入？",
+          "next_possible_action": "采集商品、服务页、私域入口或平台分成规则"
+        },
+        {
+          "question": "普通人具体如何交付？",
+          "next_possible_action": "采集详情、评论和作者历史内容"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "pilot-PILOT-20260921-003",
+          "source_url": "https://x.com/johnvirality/status/2036444247486853261",
+          "raw_json_path": "inbox/pilot-PILOT-20260921-003.json",
+          "direct_or_inferred": "direct"
+        }
+      ],
+      "material_gaps": [
+        "谁是付费方？",
+        "钱通过什么路径进入？",
+        "普通人具体如何交付？"
+      ],
+      "research_ready": false,
+      "income_verified": false,
+      "collected_at": "2026-09-28T13:08:28.850Z",
+      "generated_at": "2026-09-29T06:25:43.810Z"
+    },
+    {
+      "opportunity_id": "opp-sample-remove-me",
+      "source_ids": [
+        "sample-remove-me"
+      ],
+      "source_urls": [
+        "https://example.com"
+      ],
+      "platform": "web",
+      "title": "sample",
+      "signal_types": [],
+      "signal_terms": {
+        "result_based": [],
+        "platform_mechanism": [],
+        "demand_based": [],
+        "supply_based": [],
+        "ecosystem_change": []
+      },
+      "three_questions": {
+        "what_to_do": "unknown",
+        "payer": "unknown",
+        "money_path": "unknown"
+      },
+      "ordinary_person_fit": "unknown",
+      "current_stage": "radar_signal",
+      "triage": "excluded",
+      "reason": "未发现可研究的供给、需求、平台机制或商业信号。",
+      "facts": [
+        {
+          "statement": "来源平台为 web",
+          "source_url": "https://example.com",
+          "source_id": "sample-remove-me"
+        },
+        {
+          "statement": "内容标题为：sample",
+          "source_url": "https://example.com",
+          "source_id": "sample-remove-me"
+        }
+      ],
+      "inferences": [
+        {
+          "statement": "内容可能与机会有关，但不能仅凭本条升级为项目",
+          "based_on_source_ids": [
+            "sample-remove-me"
+          ],
+          "status": "hypothesis"
+        }
+      ],
+      "unknowns": [
+        {
+          "question": "作者身份和持续经营方向是什么？",
+          "next_possible_action": "打开作者主页并采集近期内容"
+        },
+        {
+          "question": "谁是付费方？",
+          "next_possible_action": "采集评论、商品页或服务入口"
+        },
+        {
+          "question": "钱通过什么路径进入？",
+          "next_possible_action": "采集商品、服务页、私域入口或平台分成规则"
+        },
+        {
+          "question": "普通人具体如何交付？",
+          "next_possible_action": "采集详情、评论和作者历史内容"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "sample-remove-me",
+          "source_url": "https://example.com",
+          "raw_json_path": "inbox/sample-remove-me.json",
+          "direct_or_inferred": "direct"
+        }
+      ],
+      "material_gaps": [
+        "作者身份和持续经营方向是什么？",
+        "谁是付费方？",
+        "钱通过什么路径进入？",
+        "普通人具体如何交付？"
+      ],
+      "research_ready": false,
+      "income_verified": false,
+      "collected_at": "2026-09-28T13:08:14.076Z",
+      "generated_at": "2026-09-29T06:25:43.810Z"
+    }
+  ]
+}

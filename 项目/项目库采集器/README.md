@@ -27,6 +27,17 @@
 npm run sync:feishu
 ```
 
+## 机会模式
+
+先运行 `npm run opportunity`。它会读取本地 `inbox/`，生成 `exports/opportunity-radar.json`，按项目库规则输出：
+
+- `new_opportunity`：可进入定向 Research；
+- `existing_opportunity_case`：已有项目的补充案例；
+- `signal_observation`：有信号但商业链路不完整；
+- `excluded`：缺少可研究的项目信号。
+
+每条结果都保留来源、事实、推断、未知、材料缺口和机会三问。关键词只是信号，不等于收入证明。
+
 ## 检查
 
 ```bash
