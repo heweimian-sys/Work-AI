@@ -123,7 +123,10 @@ document.getElementById('collect').addEventListener('click', async () => {
   } catch (error) { await chrome.storage.local.set({last_collection_error: {message: error.message, at: new Date().toISOString()}}); say(`采集失败：${error.message}`, 'err'); } finally { setBusy('collect', false); await refreshSummary(); }
 });
 
-document.getElementById('collectKeyword').addEventListener('click', () => document.getElementById('collect').click());
+document.getElementById('collectKeyword').addEventListener('click', () => {
+  if (!inputValue('keyword')) return say('请先填写搜索词，例如：AI获客、低成本创业、自动化', 'err');
+  document.getElementById('collect').click();
+});
 document.getElementById('collectHot').addEventListener('click', () => {
   if (!inputValue('threshold')) document.getElementById('threshold').value = '10000';
   document.getElementById('collect').click();
@@ -216,7 +219,8 @@ document.getElementById('cards').addEventListener('click', async () => {
   const blob = new Blob([JSON.stringify(cards, null, 2)], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
   await chrome.downloads.download({url, filename: `待审核项目卡-${Date.now()}.json`, saveAs: true});
-  say(`已生成 ${cards.length} 张待审核项目卡`, 'ok');
+    const high = cards.filter((card) => card.screening_score >= 55).length;
+    say(`已筛选 ${cards.length} 条内容，其中 ${high} 条高潜待审核。\n下一步：打开高潜内容，点击“补全当前内容的正文和评论”，确认后再同步飞书。`, 'ok');
 });
 
 document.getElementById('sendFeishu').addEventListener('click', async () => {
