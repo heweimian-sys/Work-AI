@@ -5,7 +5,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { insert, syncFieldMapping, getFieldList } from '../../航海小抓/lib/bitable.js';
+import { insert, syncFieldMapping, getFieldList } from '../航海小抓/lib/bitable.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const inboxDir = path.resolve(here, '..', 'inbox');
