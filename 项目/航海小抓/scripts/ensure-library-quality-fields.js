@@ -17,6 +17,11 @@ const requiredFields = [
   { field_name: '备份状态', type: 1 },
   { field_name: '有效状态', type: 1 },
   { field_name: '当前版本', type: 7 },
+  { field_name: '复刻判断', type: 1 },
+  { field_name: '复刻门槛', type: 1 },
+  { field_name: '变现方式', type: 1 },
+  { field_name: '变现证据', type: 1 },
+  { field_name: '筛选建议', type: 1 },
 ];
 
 async function listFields() {
