@@ -64,14 +64,22 @@ document.getElementById('collect').addEventListener('click', async () => {
       const contentId = (href) => (href.match(/[?&]v=([a-zA-Z0-9_-]{6,})/) || href.match(/\/shorts\/([a-zA-Z0-9_-]+)/) || href.match(/\/explore\/([a-zA-Z0-9_-]+)/) || href.match(/[?&](?:note_id|id)=([a-zA-Z0-9_-]+)/))?.[1] || null;
       const firstText = (root, selectors) => { for (const selector of selectors) { const node = root.querySelector(selector); if (node?.textContent?.trim()) return clean(node.textContent); } return null; };
       const isWatchPage = platform === 'youtube' && /\/watch\?/.test(location.href);
+      const maxListRecords = platform === 'youtube' ? 30 : 100;
       if (isWatchPage) {
         throw new Error('当前是 YouTube 单条观看页。请返回搜索结果页、频道视频页或首页，再使用“采集当前页 / 列表内容”。');
       }
       if (platform === 'youtube' && !isWatchPage) {
         // YouTube uses infinite scroll; load several viewport batches before reading cards.
-        for (let i = 0; i < 6; i += 1) {
+        let previousHeight = 0;
+        let unchangedRounds = 0;
+        for (let i = 0; i < 4; i += 1) {
           window.scrollTo(0, document.documentElement.scrollHeight);
           await new Promise((resolve) => setTimeout(resolve, 700));
+          const nextHeight = document.documentElement.scrollHeight;
+          if (nextHeight <= previousHeight) unchangedRounds += 1;
+          else unchangedRounds = 0;
+          previousHeight = nextHeight;
+          if (unchangedRounds >= 2) break;
         }
         window.scrollTo(0, 0);
       }
@@ -116,7 +124,7 @@ document.getElementById('collect').addEventListener('click', async () => {
         const images = [...element.querySelectorAll('img[src], img[data-src]')].map((node) => node.currentSrc || node.src || node.dataset.src).filter(Boolean).slice(0, 30);
         const videos = [...element.querySelectorAll('video[src], source[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10);
         records.push({ platform, content_id: extractedContentId, content_url: absoluteHref, title: title.slice(0, 500), text: elementText.slice(0, 12000), collected_at: new Date().toISOString(), metrics, media: { image_urls: images, video_urls: videos }, author_name: firstText(element, ['#channel-name a', 'ytd-channel-name a', '.author', '[class*="author"]', '[class*="user"]']), detail: { body: elementText.slice(0, 20000), hashtags, author_home_url: element.querySelector('#channel-name a, ytd-channel-name a')?.href || null, product_or_service_url: null, snapshot_path: null }, comments: [], ai_analysis: { summary: null, what_to_do: null, payer: null, money_path: null, facts: [], inferences: [], unknowns: [], ordinary_person_fit: 'unknown', triage: 'unknown', model: null } });
-        if (records.length >= 100) break;
+        if (records.length >= maxListRecords) break;
       }
       if (!records.length) records.push({ platform, content_id: contentId(location.href), content_url: location.href, title: document.title, text: clean(document.body?.innerText).slice(0, 30000), collected_at: new Date().toISOString(), media: { image_urls: [...document.images].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 30), video_urls: [...document.querySelectorAll('video[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10) } });
       return records;
@@ -244,17 +252,18 @@ document.getElementById('cards').addEventListener('click', async () => {
 document.getElementById('sendFeishu').addEventListener('click', async () => {
   if (!FEISHU_WEBHOOK_URL) {
     const saved = await chrome.storage.local.get({ records: [] });
-    const unsent = saved.records.filter((item) => !item.feishu_synced_at).length;
-    if (!unsent) return say('没有待同步内容', 'ok');
+    const pending = saved.records.filter((item) => !item.feishu_synced_at);
+    const syncBatch = pending.slice(0, 30);
+    if (!pending.length) return say('没有待同步内容', 'ok');
     setBusy('sendFeishu', true);
     try {
-      const response = await fetch(LOCAL_SYNC_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({records:saved.records.filter((item)=>!item.feishu_synced_at)})});
+      const response = await fetch(LOCAL_SYNC_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({records:syncBatch})});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || `本地同步服务返回 ${response.status}`);
-      const synced = new Set((saved.records.filter((item)=>!item.feishu_synced_at)).slice(0,result.success).map((item)=>item.record_id));
+      const synced = new Set(syncBatch.slice(0,result.success).map((item)=>item.record_id));
       const updated = saved.records.map((item)=>synced.has(item.record_id)?{...item,feishu_synced_at:new Date().toISOString()}:item);
       await chrome.storage.local.set({records:updated});
-      say(`已同步到飞书 ${result.success} 条${result.failed?`，失败 ${result.failed} 条`:''}`, result.failed?'err':'ok');
+      say(`本次同步 ${result.success} 条${result.failed?`，失败 ${result.failed} 条`:''}${pending.length>syncBatch.length?`。还有 ${pending.length-syncBatch.length} 条待同步`:''}`, result.failed?'err':'ok');
       notify('飞书同步完成', `成功 ${result.success} 条`);
     } catch (error) { say(`飞书同步失败：${error.message}\n请确认本机同步服务已启动。`, 'err'); notify('飞书同步失败', error.message); }
     finally { setBusy('sendFeishu', false); await refreshSummary(); }
