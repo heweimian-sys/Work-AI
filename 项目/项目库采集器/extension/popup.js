@@ -56,13 +56,22 @@ document.getElementById('collect').addEventListener('click', async () => {
     if (!tab?.id || !tab.url) throw new Error('没有找到当前网页');
     const keyword = inputValue('keyword');
     const threshold = Number(inputValue('threshold') || 0);
-    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, args: [{keyword, threshold}], func: ({keyword, threshold}) => {
+    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, args: [{keyword, threshold}], func: async ({keyword, threshold}) => {
       const host = location.hostname;
       const platform = host.includes('xiaohongshu') ? 'xiaohongshu' : host.includes('bilibili') ? 'bilibili' : host.includes('youtube') ? 'youtube' : (host.includes('x.com') || host.includes('twitter.com')) ? 'x' : 'web';
       const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
       const absolute = (href) => new URL(href, location.href).href;
       const contentId = (href) => (href.match(/[?&]v=([a-zA-Z0-9_-]{6,})/) || href.match(/\/shorts\/([a-zA-Z0-9_-]+)/) || href.match(/\/explore\/([a-zA-Z0-9_-]+)/) || href.match(/[?&](?:note_id|id)=([a-zA-Z0-9_-]+)/))?.[1] || null;
       const firstText = (root, selectors) => { for (const selector of selectors) { const node = root.querySelector(selector); if (node?.textContent?.trim()) return clean(node.textContent); } return null; };
+      const isWatchPage = platform === 'youtube' && /\/watch\?/.test(location.href);
+      if (platform === 'youtube' && !isWatchPage) {
+        // YouTube uses infinite scroll; load several viewport batches before reading cards.
+        for (let i = 0; i < 6; i += 1) {
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          await new Promise((resolve) => setTimeout(resolve, 700));
+        }
+        window.scrollTo(0, 0);
+      }
       const metric = (text, labels) => {
         const label = labels.find((item) => text.includes(item));
         if (!label) return null;
@@ -71,7 +80,9 @@ document.getElementById('collect').addEventListener('click', async () => {
         const value = Number(match[1]) * (match[2] === '万' ? 10000 : match[2] === '千' ? 1000 : 1);
         return Number.isFinite(value) ? value : null;
       };
-      const selectors = platform === 'bilibili'
+      const selectors = isWatchPage
+        ? 'meta[itemprop="videoId"], #title h1, h1.ytd-watch-metadata'
+        : platform === 'bilibili'
         ? 'a[href*="/video/"]'
         : platform === 'youtube'
           ? 'a#video-title, a[href*="/watch?v="]'
