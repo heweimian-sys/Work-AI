@@ -351,4 +351,21 @@ document.getElementById('sendFeishu').addEventListener('click', async () => {
   notify(failed ? '飞书写入部分失败' : '飞书写入完成', message);
 });
 
+document.getElementById('screenFeishu').addEventListener('click', async () => {
+  setBusy('screenFeishu', true);
+  try {
+    const response = await fetch(LOCAL_SYNC_URL.replace('/sync', '/screen'), {method: 'POST'});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `筛选服务返回 ${response.status}`);
+    const summary = result.output ? JSON.parse(result.output) : {};
+    say(`已完成筛选并回写飞书：更新 ${summary.updated ?? 0} 条，匹配 ${summary.matched ?? 0} 条${summary.failed ? `，失败 ${summary.failed} 条` : ''}`, summary.failed ? 'err' : 'ok');
+    notify('飞书筛选字段已更新', `更新 ${summary.updated ?? 0} 条`);
+  } catch (error) {
+    say(`筛选回写失败：${error.message}\n请确认本机同步服务已启动。`, 'err');
+    notify('筛选回写失败', error.message);
+  } finally {
+    setBusy('screenFeishu', false);
+  }
+});
+
 refreshSummary().catch(() => {});

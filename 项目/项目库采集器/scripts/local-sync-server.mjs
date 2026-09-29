@@ -1,7 +1,10 @@
 import http from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { insert, syncFieldMapping } from '../../航海小抓/lib/bitable.js';
 
 const PORT = 43127;
+const run = promisify(execFile);
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type','Content-Type':'application/json; charset=utf-8'};
 const media = (r) => r.media || {};
 function fields(r) {
@@ -19,6 +22,16 @@ function fields(r) {
 function read(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch(e){reject(e)}})})}
 const server=http.createServer(async(req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204,cors);return res.end()}
+  if(req.method==='POST'&&req.url==='/screen'){
+    try {
+      const cwd = new URL('../../航海小抓/', import.meta.url).pathname;
+      const script = new URL('../../航海小抓/scripts/sync-screening-to-feishu.js', import.meta.url).pathname;
+      const { stdout, stderr } = await run(process.execPath, [script], {cwd, timeout: 120000, maxBuffer: 2 * 1024 * 1024});
+      res.writeHead(200,cors); return res.end(JSON.stringify({ok:true, output:stdout.trim(), warning:stderr.trim()}));
+    } catch (e) {
+      res.writeHead(500,cors); return res.end(JSON.stringify({error:e.stdout || e.message}));
+    }
+  }
   if(req.method!=='POST'||req.url!=='/sync'){res.writeHead(404,cors);return res.end(JSON.stringify({error:'not found'}))}
   try{const body=await read(req);const records=Array.isArray(body.records)?body.records:[];await syncFieldMapping();let success=0;const errors=[];for(const r of records){try{await insert(fields(r));success++}catch(e){errors.push({record_id:r.record_id||'',message:e.message})}}res.writeHead(200,cors);res.end(JSON.stringify({success,failed:errors.length,errors}))}catch(e){res.writeHead(400,cors);res.end(JSON.stringify({error:e.message}))}
 });
