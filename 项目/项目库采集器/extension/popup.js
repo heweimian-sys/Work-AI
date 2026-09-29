@@ -225,8 +225,10 @@ document.getElementById('cards').addEventListener('click', async () => {
 
 document.getElementById('sendFeishu').addEventListener('click', async () => {
   if (!FEISHU_WEBHOOK_URL) {
-    say('浏览器直写飞书已关闭，请使用项目内 Feishu API 同步脚本', 'err');
-    notify('未配置飞书同步', '请在项目环境配置飞书凭据后同步');
+    const saved = await chrome.storage.local.get({ records: [] });
+    const unsent = saved.records.filter((item) => !item.feishu_synced_at).length;
+    say(`当前内容已保存在本地收件箱（${unsent} 条待同步）。\n飞书直写尚未接通，所以这次不会写入飞书。请先运行项目内的同步程序。`, 'err');
+    notify('飞书同步尚未接通', `本地保留 ${unsent} 条内容，数据不会丢失`);
     return;
   }
   const saved = await chrome.storage.local.get({ records: [] });
