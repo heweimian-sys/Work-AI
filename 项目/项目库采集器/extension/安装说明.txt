@@ -1,0 +1,9 @@
+1. 打开 Chrome，地址栏输入 chrome://extensions
+2. 打开右上角“开发者模式”
+3. 点击“加载已解压的扩展程序”
+4. 选择当前文件夹里的 collector_mvp/extension
+5. 打开小红书、B站、X 或 YouTube 页面
+6. 点击 Chrome 右上角的“项目库采集器”图标
+7. 点击“采集当前页面”
+
+当前版本会把数据保存在浏览器本地，并支持导出 JSON。

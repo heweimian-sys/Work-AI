@@ -1,0 +1,11 @@
+现在不用你操作。系统正在由 Codex 继续搭建。
+
+完整跑一轮只需要运行：
+npm run collector:run
+
+以后如果要自己配置账号：
+1. 把账号放进 config/accounts.json
+2. 把 enabled 改成 true
+3. 运行 npm run collector:youtube
+
+第一版先从 YouTube 开始，确认格式和收件箱没问题后，再接其他平台。

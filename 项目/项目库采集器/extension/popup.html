@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>项目库采集器</title><style>body{width:320px;font:14px -apple-system,BlinkMacSystemFont,sans-serif;padding:14px}button{width:100%;padding:10px;margin:6px 0;border:0;border-radius:8px;background:#111;color:white;cursor:pointer}#status{margin-top:10px;color:#555;line-height:1.5}.ok{color:#16803c}.err{color:#b42318}</style></head>
+<body>
+  <h3>项目库采集器</h3>
+  <label>关键词（可选）</label>
+  <input id="keyword" placeholder="例如：AI获客、低成本创业" style="width:96%;padding:8px;margin:4px 0 8px">
+  <label>爆款门槛（可选，点赞/播放/阅读）</label>
+  <input id="threshold" type="number" min="0" value="0" style="width:96%;padding:8px;margin:4px 0 8px">
+  <button id="collect">采集当前页面</button>
+  <button id="collectKeyword">关键词采集</button>
+  <button id="collectHot">采集爆款内容</button>
+  <button id="watchAccount">加入对标账号</button>
+  <button id="detail">采集详情和评论</button>
+  <button id="cards">生成待审核项目卡</button>
+  <button id="sendFeishu">采集内容写入飞书</button>
+  <button id="download">导出本地收件箱</button>
+  <div id="status">打开小红书、B站、X 或 YouTube 页面后点击采集。</div>
+  <script src="popup.js"></script>
+</body>
+</html>

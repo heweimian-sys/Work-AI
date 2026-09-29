@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project Library Content Record",
+  "type": "object",
+  "required": ["record_id", "platform", "content_url", "collected_at", "review_status"],
+  "properties": {
+    "record_id": {"type": "string"},
+    "platform": {"enum": ["youtube", "xiaohongshu", "bilibili", "x", "web"]},
+    "author_id": {"type": ["string", "null"]},
+    "author_name": {"type": ["string", "null"]},
+    "author_url": {"type": ["string", "null"]},
+    "content_id": {"type": ["string", "null"]},
+    "content_url": {"type": "string"},
+    "title": {"type": ["string", "null"]},
+    "text": {"type": ["string", "null"]},
+    "transcript": {"type": ["string", "null"]},
+    "ocr_text": {"type": ["string", "null"]},
+    "published_at": {"type": ["string", "null"], "format": "date-time"},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "media_type": {"type": ["string", "null"]},
+    "media": {"type": "object", "properties": {
+      "image_urls": {"type": "array", "items": {"type": "string"}},
+      "video_urls": {"type": "array", "items": {"type": "string"}}
+    }},
+    "metrics": {"type": "object"},
+    "collection_method": {"type": "string"},
+    "network_observations": {"type": "array", "items": {"type": "object", "properties": {
+      "url": {"type": "string"},
+      "method": {"type": ["string", "null"]},
+      "status_code": {"type": ["number", "null"]},
+      "type": {"type": ["string", "null"]},
+      "platform": {"type": ["string", "null"]},
+      "observed_at": {"type": ["string", "null"]}
+    }}},
+    "raw_network_responses": {"type": "array", "items": {"type": "object"}},
+    "raw_path": {"type": ["string", "null"]},
+    "dedupe_key": {"type": "string"},
+    "project_relevance": {"enum": ["high", "medium", "low", "unknown"]},
+    "has_product_or_service": {"enum": [true, false, "unknown"]},
+    "has_case_or_result": {"enum": [true, false, "unknown"]},
+    "has_reproducible_process": {"enum": [true, false, "unknown"]},
+    "commercial_activity_type": {"type": "array", "items": {"type": "string"}},
+    "evidence_level": {"enum": ["L0", "L1", "L2", "L3", "unknown"]},
+    "ai_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "ai_reason": {"type": ["string", "null"]},
+    "review_status": {"enum": ["pending", "approved", "rejected", "needs_evidence"]}
+    ,"discovery": {"type": "object", "properties": {
+      "query": {"type": ["string", "null"]},
+      "query_group": {"type": ["string", "null"]},
+      "search_url": {"type": ["string", "null"]},
+      "batch_id": {"type": ["string", "null"]},
+      "date_window": {"type": ["string", "null"]}
+    }}
+    ,"detail": {"type": "object", "properties": {
+      "body": {"type": ["string", "null"]},
+      "hashtags": {"type": "array", "items": {"type": "string"}},
+      "author_home_url": {"type": ["string", "null"]},
+      "product_or_service_url": {"type": ["string", "null"]},
+      "snapshot_path": {"type": ["string", "null"]}
+    }}
+    ,"comments": {"type": "array", "items": {"type": "object", "properties": {
+      "comment_id": {"type": ["string", "null"]},
+      "author_name": {"type": ["string", "null"]},
+      "text": {"type": "string"},
+      "published_at": {"type": ["string", "null"]},
+      "like_count": {"type": ["number", "null"]},
+      "type": {"enum": ["demand", "inquiry", "feedback", "doubt", "result", "ordinary", "unknown"]}
+    }}},
+    "ai_analysis": {"type": "object", "properties": {
+      "summary": {"type": ["string", "null"]},
+      "what_to_do": {"type": ["string", "null"]},
+      "payer": {"type": ["string", "null"]},
+      "money_path": {"type": ["string", "null"]},
+      "facts": {"type": "array", "items": {"type": "string"}},
+      "inferences": {"type": "array", "items": {"type": "string"}},
+      "unknowns": {"type": "array", "items": {"type": "string"}},
+      "ordinary_person_fit": {"enum": ["yes", "no", "unknown"]},
+      "triage": {"enum": ["new_opportunity", "existing_opportunity_case", "signal_observation", "excluded", "unknown"]},
+      "model": {"type": ["string", "null"]}
+    }}
+  }
+}

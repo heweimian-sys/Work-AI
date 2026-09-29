@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "项目库采集器 MVP",
+  "version": "0.1.0",
+  "description": "采集当前网页内容并保存为项目库收件箱记录",
+  "permissions": ["activeTab", "scripting", "storage", "downloads", "notifications", "webRequest"],
+  "host_permissions": ["https://*.xiaohongshu.com/*", "https://*.bilibili.com/*", "https://*.youtube.com/*", "https://x.com/*", "https://twitter.com/*", "https://*.feishu.cn/*"],
+  "content_scripts": [
+    {"matches": ["https://*.xiaohongshu.com/*", "https://*.bilibili.com/*", "https://*.youtube.com/*", "https://x.com/*", "https://twitter.com/*"], "js": ["page-hook.js"], "run_at": "document_start", "world": "MAIN"},
+    {"matches": ["https://*.xiaohongshu.com/*", "https://*.bilibili.com/*", "https://*.youtube.com/*", "https://x.com/*", "https://twitter.com/*"], "js": ["bridge.js"], "run_at": "document_start"}
+  ],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html"}
+}

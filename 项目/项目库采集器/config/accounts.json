@@ -1,0 +1,37 @@
+{
+  "accounts": [
+    {
+      "platform": "youtube",
+      "account_id": "",
+      "account_name": "",
+      "url": "",
+      "enabled": false,
+      "collection_mode": "api_or_rss",
+      "notes": "填写频道 ID 或 RSS 地址"
+    },
+    {
+      "platform": "xiaohongshu",
+      "account_id": "",
+      "account_name": "",
+      "url": "",
+      "enabled": false,
+      "collection_mode": "browser"
+    },
+    {
+      "platform": "bilibili",
+      "account_id": "",
+      "account_name": "",
+      "url": "",
+      "enabled": false,
+      "collection_mode": "browser"
+    },
+    {
+      "platform": "x",
+      "account_id": "",
+      "account_name": "",
+      "url": "",
+      "enabled": false,
+      "collection_mode": "browser_or_api"
+    }
+  ]
+}

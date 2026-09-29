@@ -1,0 +1,9 @@
+{
+  "name": "project-library-collector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check extension/background.js && node --check extension/bridge.js && node --check extension/page-hook.js && node --check extension/popup.js && node -e \"JSON.parse(require('fs').readFileSync('schema/content-record.schema.json','utf8')); console.log('schema ok')\"",
+    "sync:feishu": "node scripts/sync-to-feishu.mjs"
+  }
+}
