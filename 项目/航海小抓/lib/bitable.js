@@ -17,6 +17,8 @@ let FIELD_LIST = [];
 
 // 代码中用到的标准字段名 → 可能的表格列名（按优先级）
 const FIELD_ALIASES = {
+  '标题': ['标题', '活动名称', '名称', 'title', 'Title'],
+  '平台': ['平台', '来源平台', 'Platform', 'platform'],
   '文件名': ['文件名', '文件名称', '名称', '文件', 'FileName', 'Name', 'file_name', 'title'],
   '文件链接': ['文件链接', '链接', 'URL', 'Link', 'file_link', 'url'],
   '附件链接': ['附件链接', '附件URL', '附件地址', '图片链接', '图片URL', 'AttachmentLinks', 'attachment_links'],
@@ -29,13 +31,20 @@ const FIELD_ALIASES = {
   '航海阶段': ['航海阶段', '阶段', 'Stage', 'voyage_stage'],
   'AI置信度': ['AI置信度', '置信度', '可信度', '评分', 'Score', 'Confidence', 'confidence', 'ai_score'],
   // ====== 新增字段 ======
-  '一句话摘要': ['一句话摘要', '摘要', '简介', 'Summary', 'summary', '一句话总结'],
+  '一句话摘要': ['一句话摘要', '内容摘要', '摘要', '简介', 'Summary', 'summary', '一句话总结'],
   '核心观点': ['核心观点', '关键观点', '要点', 'KeyPoints', 'key_points', '核心要点'],
   '内容类型': ['内容类型', '类型', '文档类型', 'Type', 'content_type', '文档分类'],
   '适合人群': ['适合人群', '受众', '目标人群', 'Audience', 'target_audience', '适用人群'],
   '推荐优先级': ['推荐优先级', '优先级', '推荐等级', 'Priority', 'priority', '重要程度'],
   '文档完整度': ['文档完整度', '完整度', '内容完整度', 'Completeness', 'completeness', '完整评分'],
   '原文链接': ['原文链接', '原始链接', '源链接', 'SourceLink', 'source_link', '原链接'],
+  '项目相关性': ['项目相关性', '项目关联性', '相关性', 'project_relevance'],
+  '采集时间': ['采集时间', '收集时间', 'CollectedAt', 'collected_at'],
+  '内容ID': ['内容ID', '内容 ID', '笔记ID', '视频ID', 'content_id'],
+  '评论': ['评论', '评论内容', 'comments'],
+  '互动数据': ['互动数据', '互动指标', 'metrics'],
+  '图片链接': ['图片链接', '图片地址', 'image_urls'],
+  '原始记录': ['原始记录', '原始数据', 'raw_record'],
   '可用状态': ['可用状态', '资料状态', '入库状态', 'Status', 'usable_status'],
   '资料类型': ['资料类型', '素材类型', '资源类型', 'MaterialType', 'material_type'],
   '抽取正文': ['抽取正文', '正文', 'OCR正文', '可检索正文', 'ExtractedText', 'extracted_text'],

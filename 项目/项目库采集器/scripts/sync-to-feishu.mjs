@@ -24,18 +24,25 @@ async function readRecords() {
 function toFields(record) {
   const media = record.media || {};
   return {
-    '活动名称': record.title || '未命名采集内容',
+    '标题': record.title || '未命名采集内容',
+    '平台': record.platform || 'unknown',
     '原文链接': record.content_url || '',
-    '分享人': record.author_name || '',
+    '作者': record.author_name || '',
     '主题标签': (record.detail?.hashtags || []).join(' '),
     '一句话摘要': (record.text || record.detail?.body || '').slice(0, 500),
     '核心观点': record.detail?.body || record.text || '',
     '内容类型': `${record.platform || 'unknown'} / ${record.collection_method || 'unknown'}`,
     '附件链接': [...(media.image_urls || []), ...(media.video_urls || [])].join('\n'),
+    '图片链接': (media.image_urls || []).join('\n'),
+    '内容ID': record.content_id || '',
+    '评论': JSON.stringify(record.comments || []),
+    '互动数据': JSON.stringify(record.metrics || {}),
+    '项目相关性': record.project_relevance || 'unknown',
+    '采集时间': record.collected_at || '',
     '内容指纹': record.dedupe_key || record.content_id || record.content_url || '',
     '来源可信度': record.evidence_level || 'L1',
     '归档状态': record.review_status || 'pending',
-    '处理建议': JSON.stringify({
+    '原始记录': JSON.stringify({
       record_id: record.record_id,
       content_id: record.content_id || null,
       comments: record.comments || [],

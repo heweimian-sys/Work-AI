@@ -27,6 +27,8 @@
 npm run sync:feishu
 ```
 
+建议飞书视图把日常阅读字段放在最前面：`标题`、`平台`、`作者`、`原文链接`、`内容摘要`、`项目相关性`、`采集时间`。评论、互动数据、图片链接和原始记录放在后面，作为核验字段，不占用前面的阅读空间。
+
 ## 机会模式
 
 先运行 `npm run opportunity`。它会读取本地 `inbox/`，进行去重、信号分类、相似机会聚簇和优先级排序，生成 `exports/opportunity-radar.json` 与 `exports/opportunity-daily.md`，按项目库规则输出：
