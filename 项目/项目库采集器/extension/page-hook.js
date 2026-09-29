@@ -18,7 +18,14 @@
   const originalSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) { this.__projectLibraryUrl = url; this.__projectLibraryMethod = method; return originalOpen.call(this, method, url, ...rest); };
   XMLHttpRequest.prototype.send = function (...args) {
-    this.addEventListener('load', () => parseAndEmit(this.responseURL || this.__projectLibraryUrl, this.status, this.getResponseHeader('content-type'), typeof this.responseText === 'string' ? this.responseText : ''));
+    this.addEventListener('load', () => {
+      // 读取 responseText 前必须先检查 responseType；X 的部分接口会返回 arraybuffer，
+      // 直接访问 responseText 会抛 InvalidStateError，进而让扩展显示“错误”。
+      if (this.responseType && this.responseType !== 'text') return;
+      let body = '';
+      try { body = this.responseText || ''; } catch (_) { return; }
+      parseAndEmit(this.responseURL || this.__projectLibraryUrl, this.status, this.getResponseHeader('content-type'), body);
+    });
     return originalSend.apply(this, args);
   };
 })();
