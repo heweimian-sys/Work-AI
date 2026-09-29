@@ -23,6 +23,7 @@ async function readRecords() {
 
 function toFields(record) {
   const media = record.media || {};
+  const collectedAt = record.collected_at ? Date.parse(record.collected_at) : null;
   return {
     '标题': record.title || '未命名采集内容',
     '平台': record.platform || 'unknown',
@@ -38,7 +39,7 @@ function toFields(record) {
     '评论': JSON.stringify(record.comments || []),
     '互动数据': JSON.stringify(record.metrics || {}),
     '项目相关性': record.project_relevance || 'unknown',
-    '采集时间': record.collected_at || '',
+    '采集时间': Number.isFinite(collectedAt) ? collectedAt : null,
     '内容指纹': record.dedupe_key || record.content_id || record.content_url || '',
     '来源可信度': record.evidence_level || 'L1',
     '归档状态': record.review_status || 'pending',
