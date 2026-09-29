@@ -61,7 +61,7 @@ document.getElementById('collect').addEventListener('click', async () => {
       const platform = host.includes('xiaohongshu') ? 'xiaohongshu' : host.includes('bilibili') ? 'bilibili' : host.includes('youtube') ? 'youtube' : (host.includes('x.com') || host.includes('twitter.com')) ? 'x' : 'web';
       const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
       const absolute = (href) => new URL(href, location.href).href;
-      const contentId = (href) => (href.match(/\/explore\/([a-zA-Z0-9_-]+)/) || href.match(/[?&](?:note_id|id)=([a-zA-Z0-9_-]+)/))?.[1] || null;
+      const contentId = (href) => (href.match(/[?&]v=([a-zA-Z0-9_-]{6,})/) || href.match(/\/shorts\/([a-zA-Z0-9_-]+)/) || href.match(/\/explore\/([a-zA-Z0-9_-]+)/) || href.match(/[?&](?:note_id|id)=([a-zA-Z0-9_-]+)/))?.[1] || null;
       const firstText = (root, selectors) => { for (const selector of selectors) { const node = root.querySelector(selector); if (node?.textContent?.trim()) return clean(node.textContent); } return null; };
       const metric = (text, labels) => {
         const label = labels.find((item) => text.includes(item));
@@ -82,8 +82,11 @@ document.getElementById('collect').addEventListener('click', async () => {
               : 'a[href]';
       const seen = new Set();
       const records = [];
-      for (const element of document.querySelectorAll(selectors)) {
-        const link = element.tagName === 'A' ? element : element.querySelector('a[href]');
+      for (const matchedElement of document.querySelectorAll(selectors)) {
+        const link = matchedElement.tagName === 'A' ? matchedElement : matchedElement.querySelector('a[href]');
+        const element = platform === 'youtube'
+          ? (matchedElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytd-playlist-video-renderer') || matchedElement)
+          : matchedElement;
         const href = link?.href || location.href;
         const key = href.split('?')[0];
         if (seen.has(key) || (platform !== 'x' && key === location.href.split('?')[0])) continue;
@@ -98,7 +101,7 @@ document.getElementById('collect').addEventListener('click', async () => {
         const hashtags = [...elementText.matchAll(/#[^#\s]{1,40}/g)].map((match) => match[0]).slice(0, 30);
         const images = [...element.querySelectorAll('img[src], img[data-src]')].map((node) => node.currentSrc || node.src || node.dataset.src).filter(Boolean).slice(0, 30);
         const videos = [...element.querySelectorAll('video[src], source[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10);
-        records.push({ platform, content_id: contentId(absolute(href)), content_url: absolute(href), title: title.slice(0, 500), text: elementText.slice(0, 12000), collected_at: new Date().toISOString(), metrics, media: { image_urls: images, video_urls: videos }, author_name: firstText(element, ['.author', '[class*="author"]', '[class*="user"]']), detail: { body: elementText.slice(0, 20000), hashtags, author_home_url: null, product_or_service_url: null, snapshot_path: null }, comments: [], ai_analysis: { summary: null, what_to_do: null, payer: null, money_path: null, facts: [], inferences: [], unknowns: [], ordinary_person_fit: 'unknown', triage: 'unknown', model: null } });
+        records.push({ platform, content_id: contentId(absolute(href)), content_url: absolute(href), title: title.slice(0, 500), text: elementText.slice(0, 12000), collected_at: new Date().toISOString(), metrics, media: { image_urls: images, video_urls: videos }, author_name: firstText(element, ['#channel-name a', 'ytd-channel-name a', '.author', '[class*="author"]', '[class*="user"]']), detail: { body: elementText.slice(0, 20000), hashtags, author_home_url: element.querySelector('#channel-name a, ytd-channel-name a')?.href || null, product_or_service_url: null, snapshot_path: null }, comments: [], ai_analysis: { summary: null, what_to_do: null, payer: null, money_path: null, facts: [], inferences: [], unknowns: [], ordinary_person_fit: 'unknown', triage: 'unknown', model: null } });
         if (records.length >= 100) break;
       }
       if (!records.length) records.push({ platform, content_id: contentId(location.href), content_url: location.href, title: document.title, text: clean(document.body?.innerText).slice(0, 30000), collected_at: new Date().toISOString(), media: { image_urls: [...document.images].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 30), video_urls: [...document.querySelectorAll('video[src]')].map((node) => node.currentSrc || node.src).filter(Boolean).slice(0, 10) } });
